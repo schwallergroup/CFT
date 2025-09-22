@@ -4,7 +4,10 @@ Version: 0.1.0
 Summary: Add your description here
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
-Requires-Dist: autoadsorbate>=0.2.3
+Requires-Dist: autoadsorbate==0.2.4
+Requires-Dist: networkx>=3.5
+Requires-Dist: plyfile>=1.1.2
+Requires-Dist: tqdm>=4.67.1
 
 # :wave: The Basics of GitHub 
 

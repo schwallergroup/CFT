@@ -8,10 +8,10 @@ CFT - stands for Covalent Field Theory. This package provides functionality for 
 __version__ = "0.1.0"
 
 # Optional: import key components for easy access
-#from .core import main_function
+from .core import Manifold
 #from .utils import helper_function
 #
-#__all__ = [
-#    "main_function",
+__all__ = [
+   "Manifold",
 #    "helper_function",
-#]
+]
