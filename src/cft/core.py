@@ -154,10 +154,31 @@ class Manifold(Surface):
         return out_atoms
 
     def view_grid(self, inclde_atoms=True):
+        """
+        Displays a grid view of atoms.
+
+        Args:
+            inclde_atoms (bool, optional): If True, includes atoms in the grid view. Defaults to True.
+
+        Returns:
+            None
+        """
         view_atoms = self.get_grid_atoms(inclde_atoms)
         view(view_atoms)
 
     def view_hedgehog(self, marker='X'):
+        """
+        Visualizes the grid atoms along their normal vectors, creating a "hedgehog" effect.
+
+        For each atom in the grid, additional atoms are placed along the direction of its normal vector,
+        spaced at intervals from 0 to 2 (step 0.2). The marker symbol for these atoms can be customized.
+
+        Args:
+            marker (str, optional): The symbol used to represent the additional atoms. Defaults to 'X'.
+
+        Returns:
+            None
+        """
         view_atoms = self.grid_atoms.copy()
         for i, v in enumerate(self.grid):
             for slide in np.arange(0,2, 0.2):
