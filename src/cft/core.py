@@ -42,7 +42,7 @@ class Manifold(Surface):
                 ref_atoms = ref_atoms,
                 probe = probe,
                 vertices = self.grid,
-                normals = self.normals
+                normals = self.normals,
             )
             energies = dyn.run()
 
@@ -51,9 +51,6 @@ class Manifold(Surface):
             else:
                 name = probe.smile
             self.probe_names.append(name)
-
-            # grads = compute_vertex_gradients(vertices=self.grid, faces=self.faces, values=energies)
-            # grad_norms = np.linalg.norm(grads, axis=1)
 
             grads, grad_norms = compute_gradients_per_column(energies, self.grid, self.faces)
 
@@ -73,16 +70,16 @@ class Manifold(Surface):
         view(view_atoms)
 
     def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=False):
-        out_atoms = self.get_grid_atoms(inclde_atoms)
 
         if inclde_atoms:
-            write(filename, out_atoms)
-            return
+            raise ValueError('mode not yet supported')
+        
+        out_atoms = self.grid_atoms.copy()
         
         for name in self.probe_names:
-            energies = self.grid_atoms.arrays[f'e_{name}']
-            grads = self.grid_atoms.arrays[f'grad_e_{name}']
-            grad_norms = self.grid_atoms.arrays[f'grad_norm_e_{name}']
+            energies = out_atoms.arrays.pop(f'e_{name}')
+            grads = out_atoms.arrays.pop(f'grad_e_{name}')
+            grad_norms = out_atoms.arrays.pop(f'grad_norm_e_{name}')
 
             for j in range(energies.shape[1]):
                     out_atoms.arrays[f'e_{name}_{j}'] = energies[:, j]             # (n_atoms,)
@@ -90,6 +87,14 @@ class Manifold(Surface):
                     out_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
 
         write(filename, out_atoms)
+
+    def view_hedgehog(self, marker='X'):
+        view_atoms = self.grid_atoms.copy()
+        for i, v in enumerate(self.grid):
+            for slide in np.arange(0,2, 0.2):
+                view_atoms+=Atoms([marker], [v+slide*self.normals[i]])
+        view(view_atoms)
+
 
     def save_ply(self,
             vertex_colors: Union[Iterable, None] = None,
