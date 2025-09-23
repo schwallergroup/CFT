@@ -6,7 +6,13 @@ from ase.visualize import view
 from ase.io import read, write
 
 from autoadsorbate import Surface, Fragment
-from .mesh_utils import reorient_faces_from_seed, compute_outward_vertex_normals_quads, save_ply_quads
+from .mesh_utils import (
+    reorient_faces_from_seed,
+    compute_outward_vertex_normals_quads,
+    save_ply_quads,
+    compute_vertex_gradients,
+    compute_gradients_per_column
+)
 from .dynamics import ProbeScan
 
 class Manifold(Surface):
@@ -30,6 +36,7 @@ class Manifold(Surface):
                 continue
 
             ref_atoms = self.atoms.copy()
+            ref_atoms.calc = self.calc
             dyn = ProbeScan(
                 ref_atoms = ref_atoms,
                 probe = probe,
@@ -38,12 +45,25 @@ class Manifold(Surface):
             )
             energies = dyn.run()
 
-            if len(probe) == 1:
+            if type(probe) == Atoms and len(probe) == 1:
                 name = probe.get_chemical_formula()
             else:
                 name = probe.smile
 
-            self.atoms.arrays[f'e_{name}']
+            # grads = compute_vertex_gradients(vertices=self.grid, faces=self.faces, values=energies)
+            # grad_norms = np.linalg.norm(grads, axis=1)
+
+            grads, grad_norms = compute_gradients_per_column(energies, self.grid, self.faces)
+
+            for j in range(energies.shape[1]):
+                self.grid_atoms.arrays[f'e_{name}_{j}'] = energies[:, j]             # (n_atoms,)
+                self.grid_atoms.arrays[f'grad_norm_e_{name}_{j}'] = grad_norms[:, j] # (n_atoms,)
+                self.grid_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
+                
+            # self.grid_atoms.arrays[f'e_{name}'] = energies
+            # self.grid_atoms.arrays[f'grad_e_{name}'] = grads
+            # self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
+            
 
     def get_grid_atoms(self, inclde_atoms=True):
         out_atoms = self.grid_atoms
@@ -77,3 +97,4 @@ class Manifold(Surface):
             normals = self.normals,
             vertex_colors = vertex_colors
             )
+

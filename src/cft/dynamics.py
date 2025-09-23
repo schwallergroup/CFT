@@ -1,14 +1,16 @@
 from ase.io import read, write
+from ase import Atoms
 from ase.constraints import FixedLine, FixAtoms
 from ase.optimize import BFGS
 import numpy as np
 from tqdm import tqdm
 from autoadsorbate.Surf import attach_fragment
 from ase.io.trajectory import Trajectory
-
+from autoadsorbate import Fragment
+from itertools import product
 
 class ProbeScan:
-    def __init__(self, ref_atoms, probe_atom, coordinates, normals=None):
+    def __init__(self, ref_atoms, probe, vertices, normals=None):
         """
         Evaluate energies of a probe atom placed at multiple coordinates
         near a reference structure.
@@ -23,12 +25,12 @@ class ProbeScan:
             Positions to place the probe atom.
         """
         if normals is not None:
-            if not len(coordinates) == len(normals):
-                raise ValueError(f'{len(coordinates) == len(normals) = }. Must be true.')
+            if not len(vertices) == len(normals):
+                raise ValueError(f'{len(vertices) == len(normals) = }. Must be true.')
 
         self.ref_atoms = ref_atoms
-        self.probe_atom = probe_atom
-        self.coordinates = np.array(coordinates)
+        self.probe = probe
+        self.coordinates = np.array(vertices)
         self.normals = normals
 
         # if probe_atom.get_global_number_of_atoms() != 1:
@@ -37,61 +39,56 @@ class ProbeScan:
         if self.ref_atoms.calc is None:
             raise ValueError("ref_atoms must have a calculator attached.")
 
-    def run(self, subtract_ref=True, show_progress=True):
+
+    def run(self):
         """
         Run the probe scan.
 
-        Parameters
-        ----------
-        subtract_ref : bool, default True
-            If True, return interaction energies relative to reference system.
-            If False, return total energies of combined system.
-        show_progress : bool, default True
-            If True, display a progress bar.
-
         Returns
         -------
-        list of float
-            Energies for each probe position.
+        energies : np.ndarray
+            Array of shape (len(coordinates), len(probe.conformers))
+            Interaction energies for each probe position and conformer.
         """
-        energies = []
-        # ref_energy = self.ref_atoms.get_potential_energy()
-        ref_energy = 0
-
-        iterator = self.coordinates
-        if show_progress:
-            iterator = tqdm(self.coordinates, desc="Scanning probe positions")
-
         debug_traj = []
-        for i, pos in enumerate(iterator):
-            
-            probe = self.probe_atom.copy()
-            
-            if len(probe) == 1:
+
+        if isinstance(self.probe, Atoms):
+            # Single conformer → treat as 1-column array
+            energies = np.zeros((len(self.coordinates), 1))
+            iterator = enumerate(tqdm(self.coordinates, desc="Scanning probe positions"))
+            for i, pos in iterator:
+                probe = self.probe.copy()
                 probe.set_positions([pos])
                 system = self.ref_atoms + probe
-            else:
+                system.calc = self.ref_atoms.calc
+                debug_traj.append(system)
+                energies[i, 0] = system.get_potential_energy()
+
+        elif isinstance(self.probe, Fragment):
+            n_confs = len(self.probe.conformers)
+            energies = np.zeros((len(self.coordinates), n_confs))
+            conformers = [self.probe.get_conformer(j) for j in range(n_confs)]
+            iterator = enumerate(tqdm(list(product(range(len(self.coordinates)), range(n_confs))),
+                                    desc="Scanning probe positions"))
+            for idx, (i_coord, j_conf) in iterator:
+                pos = self.coordinates[i_coord]
+                probe = conformers[j_conf]
                 system = attach_fragment(
-                    atoms = self.ref_atoms.copy(),
-                    site_dict= {
+                    atoms=self.ref_atoms.copy(),
+                    site_dict={
                         'coordinates': pos,
-                        'n_vector': self.normals[i]
-                        },
-                    fragment = probe, # ase.atoms.Atoms,
-                    n_rotation = 0,
-                    height = 0,
+                        'n_vector': self.normals[i_coord]
+                    },
+                    fragment=probe,
+                    n_rotation=0,
+                    height=0,
                 )
-            system.calc = self.ref_atoms.calc
+                system.calc = self.ref_atoms.calc
+                debug_traj.append(system)
+                energies[i_coord, j_conf] = system.get_potential_energy()
 
-            debug_traj+=[system]
-
-            e = system.get_potential_energy()
-            if subtract_ref:
-                e -= ref_energy
-            energies.append(e)
-        
         write('tmp.xyz', debug_traj)
-            
+        print(f'{energies.shape = }')
         return energies
 
 class ProbeLineOpt:
@@ -197,3 +194,13 @@ class ProbeLineOpt:
             traj.close()
 
         return energies, positions
+
+
+def place_fragment(
+        atoms: Atoms,
+        site_dict: dict,
+        fragment: Atoms,
+        n_rotation: float,
+        height: float = None,
+    ):
+    pass

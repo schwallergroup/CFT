@@ -362,8 +362,40 @@ def compute_vertex_gradients(vertices, faces, values):
         # Normalize by total weight
         if total_weight > 1e-12:
             gradients[vertex_idx] = weighted_gradient / total_weight
-    
     return gradients
+
+
+def compute_gradients_per_column(energies, grid, faces):
+    """
+    Compute vertex gradients for energies, column by column if 2D.
+
+    Args:
+        energies : np.ndarray
+            Shape (n_positions,) or (n_positions, n_conformers)
+        grid : np.ndarray
+            Vertex coordinates
+        faces : np.ndarray
+            Mesh faces
+
+    Returns:
+        grads : np.ndarray
+            Shape (n_positions, n_conformers, 3)
+        grad_norms : np.ndarray
+            Shape (n_positions, n_conformers)
+    """
+    energies = np.atleast_2d(energies)  # shape -> (n_positions, n_conformers)
+    n_positions, n_confs = energies.shape
+
+    grads = np.zeros((n_positions, n_confs, 3))
+    grad_norms = np.zeros((n_positions, n_confs))
+
+    for j in range(n_confs):
+        grad_j = compute_vertex_gradients(vertices=grid, faces=faces, values=energies[:, j])
+        # grads[:, j, :] = grad_j
+        grad_norms[:, j] = np.linalg.norm(grad_j, axis=1)
+
+    return grads, grad_norms
+
 
 
 def compute_vertex_gradients_least_squares(vertices, faces, values):
