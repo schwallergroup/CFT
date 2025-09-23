@@ -6,6 +6,7 @@ from typing import List, Sequence
 from collections import defaultdict
 from collections import defaultdict
 from plyfile import PlyData, PlyElement
+from random import shuffle
 
 def face_normal(verts, face):
     """Compute normal of quad face (area-weighted sum of 2 triangle normals)."""
@@ -482,3 +483,99 @@ def compute_vertex_gradients_least_squares(vertices, faces, values):
                 pass  # Keep zero gradient if solve fails
     
     return gradients
+
+
+import numpy as np
+from scipy.spatial import cKDTree
+
+def select_non_interacting_vertices(vertices, radius=3.0, decay=1.5, randomize=True):
+    """
+    Selects the maximum number of vertices from a mesh such that
+    no two selected vertices have significant interaction.
+
+    Parameters
+    ----------
+    vertices : np.ndarray, shape (N, 3)
+        Coordinates of mesh vertices.
+    radius : float, optional (default=3.0)
+        Base interaction radius.
+    decay : float, optional (default=1.5)
+        Distance over which interaction decays to near zero.
+
+    Returns
+    -------
+    selected : list[int]
+        Indices of selected vertices.
+    """
+    vertices = np.asarray(vertices)
+    tree = cKDTree(vertices)
+
+    # Define cutoff distance where interaction is considered "significant"
+    cutoff = radius + decay  
+
+    N = len(vertices)
+    selected = []
+    excluded = np.zeros(N, dtype=bool)
+
+    inds = [n for n in range(N)]
+    if randomize:
+        shuffle(inds)
+        
+    for i in inds:
+        if excluded[i]:
+            continue
+
+        # Accept this vertex
+        selected.append(i)
+
+        # Exclude all neighbors within cutoff distance
+        neighbors = tree.query_ball_point(vertices[i], cutoff)
+        excluded[neighbors] = True
+
+    return selected
+
+
+def estimate_radius_decay(atoms_list, rmax=None):
+    """
+    Estimate interaction radius and decay based on xy-projection
+    of atomic positions across a list of Atoms.
+
+    Parameters
+    ----------
+    atoms_list : list[ase.Atoms]
+        List of ASE Atoms objects.
+    rmax : float or None
+        Optional cutoff for maximum pair distance to consider (default: no cutoff).
+
+    Returns
+    -------
+    radius : float
+        Estimated radius (interaction stays constant inside).
+    decay : float
+        Estimated decay length (interaction falls off).
+    """
+    xy_coords = []
+    for atoms in atoms_list:
+        pos = atoms.get_positions()[:, :2]  # project to xy-plane
+        xy_coords.append(pos)
+    xy_coords = np.vstack(xy_coords)
+
+    # pairwise distances in 2D
+    diff = xy_coords[:, None, :] - xy_coords[None, :, :]
+    dists = np.sqrt((diff ** 2).sum(axis=-1))
+
+    # take upper triangle (avoid zeros/self-distances)
+    dists = dists[np.triu_indices(len(xy_coords), k=1)]
+
+    if rmax is not None:
+        dists = dists[dists <= rmax]
+
+    if len(dists) == 0:
+        raise ValueError("No valid pairwise distances found.")
+
+    # estimate: short-range cutoff and spread
+    radius = np.percentile(dists, 5)   # "core" distance
+    decay = np.percentile(dists, 95) - radius
+
+    return float(radius), float(decay)
+

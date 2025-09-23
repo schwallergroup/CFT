@@ -1,9 +1,11 @@
 import numpy as np
 from ase import Atoms
-from typing import Literal, Union, Iterable, List
+from typing import Literal, Union, Iterable, List, Annotated
 from ase.calculators import calculator
 from ase.visualize import view
 from ase.io import read, write
+import random
+from autoadsorbate.Surf import attach_fragment
 
 from autoadsorbate import Surface, Fragment
 from .mesh_utils import (
@@ -11,11 +13,43 @@ from .mesh_utils import (
     compute_outward_vertex_normals_quads,
     save_ply_quads,
     compute_vertex_gradients,
-    compute_gradients_per_column
+    compute_gradients_per_column,
+    select_non_interacting_vertices,
+    estimate_radius_decay
 )
 from .dynamics import ProbeScan
 
 class Manifold(Surface):
+    """
+    Represents a geometric manifold constructed from a grid of vertices and faces, 
+    supporting probe scanning, visualization, and mesh export functionalities.
+    Inherits from:
+        Surface
+        *args: Variable length argument list for the parent Surface class.
+        calc (calculator, optional): ASE calculator for energy and gradient computations.
+        viz_marker (str, optional): Marker symbol for grid visualization. Defaults to 'X'.
+        **kwargs: Arbitrary keyword arguments for the parent Surface class.
+    Attributes:
+        faces (np.ndarray): Array of oriented face indices.
+        normals (np.ndarray): Array of outward vertex normals.
+        grid_atoms (Atoms): Atoms object representing grid vertices.
+        calc (calculator): ASE calculator for probe scans.
+        probe_names (list): List of probe identifiers used in scans.
+    Methods:
+        run_probe_scan(probes):
+            Runs probe scans over the grid using the provided probes and stores energies and gradients.
+        get_non_interacting_vertices(radius=3.0, decay=1.5, randomize=True):
+        get_grid_atoms(inclde_atoms=True):
+            Returns grid atoms, optionally including the original atoms.
+        view_grid(inclde_atoms=True):
+            Visualizes the grid atoms, optionally including the original atoms.
+        write_grid(filename='tmp.xyz', inclde_atoms=False):
+            Writes grid atoms and probe scan results to a file.
+        view_hedgehog(marker='X'):
+            Visualizes grid vertices with their normals as "hedgehog" markers.
+        save_ply(vertex_colors=None, filename='./quad_sphere_tmp.ply'):
+            Saves the mesh data to a PLY file, optionally with vertex colors.
+        """
     def __init__(self, *args, calc: calculator = None, viz_marker='X', **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -26,6 +60,29 @@ class Manifold(Surface):
         self.probe_names = list()
     
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
+        """
+        Scans a set of probe molecules or atoms over a predefined grid on the reference structure,
+        computes energies and gradients for each probe position, and stores the results.
+        Parameters
+        ----------
+        probes : List[Union[Fragment, Atoms]]
+            A list of probe objects, each being either a Fragment or an Atoms instance.
+            If an Atoms object contains more than one atom, it is skipped with a warning.
+        Raises
+        ------
+        ValueError
+            If the calculator (`self.calc`) is not set.
+        Side Effects
+        ------------
+        - Appends the name of each probe to `self.probe_names`.
+        - Stores computed energies and gradients in `self.grid_atoms.arrays` with keys
+          based on the probe name.
+        Notes
+        -----
+        - For single-atom probes, the chemical formula is used as the name.
+        - For Fragment probes, the SMILES string is used as the name.
+        - Energies and gradients are computed using the `ProbeScan` and `compute_gradients_per_column` utilities.
+        """
 
         if self.calc is None:
             raise ValueError(f'Please provide ase calculator to Manifold.calc.')
@@ -57,9 +114,39 @@ class Manifold(Surface):
             self.grid_atoms.arrays[f'e_{name}'] = energies
             self.grid_atoms.arrays[f'grad_e_{name}'] = grads
             self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
-            
+
+    def get_non_interacting_vertices(self, radius=3.0, decay=1.5, randomize=True):
+        """
+        Returns a selection of non-interacting vertices from the grid.
+
+        This method identifies vertices that do not interact within a specified radius,
+        using a decay factor to influence selection probability. Optionally, the selection
+        can be randomized.
+
+        Args:
+            radius (float, optional): The radius within which interactions are considered. Defaults to 3.0.
+            decay (float, optional): Decay factor affecting selection probability. Defaults to 1.5.
+            randomize (bool, optional): If True, randomizes the selection of vertices. Defaults to True.
+
+        Returns:
+            list: A list of non-interacting vertices selected from the grid.
+        """
+        return select_non_interacting_vertices(
+            self.grid, radius=radius, decay=decay, randomize=randomize)
+
 
     def get_grid_atoms(self, inclde_atoms=True):
+        """
+        Returns the grid atoms, optionally including additional atoms.
+
+        Args:
+            inclde_atoms (bool, optional): If True, includes both self.atoms and self.grid_atoms in the output. 
+                If False, returns only self.grid_atoms. Defaults to True.
+
+        Returns:
+            list: A list of atoms, either self.grid_atoms or self.atoms + self.grid_atoms depending on inclde_atoms.
+        """
+        """"""
         out_atoms = self.grid_atoms
         if inclde_atoms:
             out_atoms = self.atoms + self.grid_atoms
@@ -69,7 +156,32 @@ class Manifold(Surface):
         view_atoms = self.get_grid_atoms(inclde_atoms)
         view(view_atoms)
 
+    def view_hedgehog(self, marker='X'):
+        view_atoms = self.grid_atoms.copy()
+        for i, v in enumerate(self.grid):
+            for slide in np.arange(0,2, 0.2):
+                view_atoms+=Atoms([marker], [v+slide*self.normals[i]])
+        view(view_atoms)
+
     def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=False):
+        """
+        Writes the grid atoms and associated probe data to a file in XYZ format.
+        Parameters
+        ----------
+        filename : str, optional
+            The name of the output file. Defaults to 'tmp.xyz'.
+        inclde_atoms : bool, optional
+            If True, includes atoms in the output. Currently not supported and will raise a ValueError.
+        Raises
+        ------
+        ValueError
+            If `inclde_atoms` is set to True.
+        Notes
+        -----
+        For each probe name in `self.probe_names`, the method extracts energy, gradient, and gradient norm arrays
+        from `self.grid_atoms`, splits them per probe component, and adds them back to the atom arrays with
+        appropriately suffixed keys. The resulting atom data is then written to the specified file.
+        """
 
         if inclde_atoms:
             raise ValueError('mode not yet supported')
@@ -87,13 +199,6 @@ class Manifold(Surface):
                     out_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
 
         write(filename, out_atoms)
-
-    def view_hedgehog(self, marker='X'):
-        view_atoms = self.grid_atoms.copy()
-        for i, v in enumerate(self.grid):
-            for slide in np.arange(0,2, 0.2):
-                view_atoms+=Atoms([marker], [v+slide*self.normals[i]])
-        view(view_atoms)
 
 
     def save_ply(self,
@@ -115,3 +220,77 @@ class Manifold(Surface):
             vertex_colors = vertex_colors
             )
 
+    def make_fragment_population(
+            self,
+            population_size: int,
+            fragment: Fragment,
+            radius: Union[float, None] = None,
+            decay: Union[float, None] = None,
+            coverage:  Annotated[float, "in [0,1]"] = 0.8,
+            anticipated_bond_len = 2.
+            ):
+        """
+            Generates a population of molecular structures by attaching a given fragment to non-interacting sites on a surface.
+            Args:
+                population_size (int): Number of structures to generate in the population.
+                fragment (Fragment): The molecular fragment to attach to the surface.
+                radius (float, optional): Interaction radius for selecting attachment sites. If None, estimated automatically.
+                decay (float, optional): Decay parameter for site selection. If None, estimated automatically.
+                coverage (float, optional): Fraction of available sites to use for fragment attachment (between 0 and 1). Default is 0.8.
+                anticipated_bond_len (float, optional): Expected bond length between the fragment and the surface. Default is 2.0.
+            Returns:
+                List[np.ndarray]: A list of atom arrays representing the generated population of structures with attached fragments.
+            Notes:
+                - The function randomizes fragment orientation and attachment sites for each structure.
+                - If both `radius` and `decay` are None, they are estimated from the fragment conformers.
+                - The fragment is attached at selected surface sites with randomized rotation.
+            """
+        
+        oriented_conformers = [fragment.get_conformer(i) for i, _  in enumerate(fragment.conformers)]
+
+        if radius is None and decay is None:
+            radius, decay = estimate_radius_decay(
+                oriented_conformers
+                )
+        
+        surface_pop = []
+
+        for _ in range(population_size):
+
+            inds = self.get_non_interacting_vertices(radius=radius, decay=decay, randomize=True)
+            inds = inds[:int(len(inds)*coverage)]
+
+            if len(fragment.conformers) < len(inds):
+                conformers_prepped = (oriented_conformers * (len(inds) // len(oriented_conformers) + 1))[:len(inds)]
+            else:
+                conformers_prepped = oriented_conformers
+        
+            rotations = [random.uniform(0, 360) for _ in inds]
+            random.shuffle(conformers_prepped)
+            random.shuffle(inds)
+            atoms = self.atoms.copy()
+            
+            if 'fragments' not in atoms.arrays.keys():
+                atoms.arrays['fragments'] = np.array([0 for _ in atoms])
+
+            for i, (rot, ind) in enumerate(zip(rotations, inds)):
+
+                frg = conformers_prepped[i] 
+                frg.arrays['fragments'] = np.array([np.max(atoms.arrays['fragments'])+1 for _ in frg])
+
+                atoms = attach_fragment(
+                    atoms=atoms,
+                    site_dict={
+                        'coordinates': self.grid[ind],
+                        'n_vector': self.normals[ind]
+                    },
+                    fragment=frg,
+                    n_rotation=rot,
+                    height = anticipated_bond_len - self.touch_sphere_size,
+                )
+                
+                    
+            surface_pop.append(atoms)
+        
+        return surface_pop
+            
