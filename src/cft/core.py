@@ -23,6 +23,7 @@ class Manifold(Surface):
         self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces)
         self.grid_atoms = Atoms([viz_marker for _ in self.grid], self.grid)
         self.calc = calc
+        self.probe_names = list()
     
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
 
@@ -49,20 +50,16 @@ class Manifold(Surface):
                 name = probe.get_chemical_formula()
             else:
                 name = probe.smile
+            self.probe_names.append(name)
 
             # grads = compute_vertex_gradients(vertices=self.grid, faces=self.faces, values=energies)
             # grad_norms = np.linalg.norm(grads, axis=1)
 
             grads, grad_norms = compute_gradients_per_column(energies, self.grid, self.faces)
 
-            for j in range(energies.shape[1]):
-                self.grid_atoms.arrays[f'e_{name}_{j}'] = energies[:, j]             # (n_atoms,)
-                self.grid_atoms.arrays[f'grad_norm_e_{name}_{j}'] = grad_norms[:, j] # (n_atoms,)
-                self.grid_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
-                
-            # self.grid_atoms.arrays[f'e_{name}'] = energies
-            # self.grid_atoms.arrays[f'grad_e_{name}'] = grads
-            # self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
+            self.grid_atoms.arrays[f'e_{name}'] = energies
+            self.grid_atoms.arrays[f'grad_e_{name}'] = grads
+            self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
             
 
     def get_grid_atoms(self, inclde_atoms=True):
@@ -75,8 +72,23 @@ class Manifold(Surface):
         view_atoms = self.get_grid_atoms(inclde_atoms)
         view(view_atoms)
 
-    def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=True):
+    def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=False):
         out_atoms = self.get_grid_atoms(inclde_atoms)
+
+        if inclde_atoms:
+            write(filename, out_atoms)
+            return
+        
+        for name in self.probe_names:
+            energies = self.grid_atoms.arrays[f'e_{name}']
+            grads = self.grid_atoms.arrays[f'grad_e_{name}']
+            grad_norms = self.grid_atoms.arrays[f'grad_norm_e_{name}']
+
+            for j in range(energies.shape[1]):
+                    out_atoms.arrays[f'e_{name}_{j}'] = energies[:, j]             # (n_atoms,)
+                    out_atoms.arrays[f'grad_norm_e_{name}_{j}'] = grad_norms[:, j] # (n_atoms,)
+                    out_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
+
         write(filename, out_atoms)
 
     def save_ply(self,

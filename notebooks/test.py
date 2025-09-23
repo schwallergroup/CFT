@@ -19,7 +19,7 @@ print(f'{s.grid[0] = }')
 
 m = Manifold(
     atoms,
-    precision = 5.,
+    precision = 15.,
     mode = 'particle',
     calc = calc
     )
