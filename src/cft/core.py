@@ -15,9 +15,9 @@ from .mesh_utils import (
     compute_vertex_gradients,
     compute_gradients_per_column,
     select_non_interacting_vertices,
-    estimate_radius_decay
+    estimate_radius_decay,
 )
-from .dynamics import ProbeScan
+from .dynamics import ProbeScan, evaluate_and_sort_atoms_by_energy
 
 class Manifold(Surface):
     """
@@ -58,6 +58,7 @@ class Manifold(Surface):
         self.grid_atoms = Atoms([viz_marker for _ in self.grid], self.grid)
         self.calc = calc
         self.probe_names = list()
+        self.surf_population = None
     
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
         """
@@ -253,7 +254,7 @@ class Manifold(Surface):
                 oriented_conformers
                 )
         
-        surface_pop = []
+        surf_population = []
 
         for _ in range(population_size):
 
@@ -289,8 +290,25 @@ class Manifold(Surface):
                     height = anticipated_bond_len - self.touch_sphere_size,
                 )
                 
-                    
-            surface_pop.append(atoms)
+            atoms.info['n_fragments'] = np.max(atoms.arrays['fragments'])
+            surf_population.append(atoms)
         
-        return surface_pop
+        self.surf_population = surf_population
             
+    def evaluate_surf_population(self):
+        """
+        Evaluates the energy of atoms in the surface population and sorts them by energy.
+        Raises:
+            ValueError: If the surface population (`self.surf_population`) has not been generated.
+        Side Effects:
+            Updates `self.surf_population` with the evaluated and sorted atoms using the provided calculator (`self.calc`).
+        Note:
+            To generate the surface population, use `Manifold.make_fragment_population()`.
+        """
+
+        if self.surf_population is None:
+            raise ValueError(f'Surface population is not generated: {self.surf_population = }.\n \
+                             To create surface population use: Manifold.make_fragment_population()')
+        
+        self.surf_population = evaluate_and_sort_atoms_by_energy(self.surf_population, self.calc)
+        

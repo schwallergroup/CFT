@@ -8,7 +8,8 @@ from autoadsorbate.Surf import attach_fragment
 from ase.io.trajectory import Trajectory
 from autoadsorbate import Fragment
 from itertools import product
-from typing import Union, Literal
+from typing import Union, Literal, List
+import copy
 
 class ProbeScan:
     def __init__(self, ref_atoms,
@@ -114,6 +115,29 @@ def get_static_energy(
     # #debug mode
     # write('debug_atoms.xyz', system, append=True)
     return system.get_potential_energy()
+
+def evaluate_and_sort_atoms_by_energy(atoms_list: List[Atoms], calculator) -> List[Atoms]:
+    """
+    Compute potential energies for a list of ASE Atoms objects,
+    store them in atoms.info['static_energy'], and return a list
+    sorted by energy (lowest first).
+
+    Args:
+        atoms_list (List[Atoms]): List of ASE Atoms objects.
+        calculator: ASE calculator instance to attach to each Atoms object.
+
+    Returns:
+        List[Atoms]: Sorted list of Atoms by potential energy.
+    """
+    for atoms in tqdm(atoms_list, desc="Calculating energies"):
+        atoms.calc = copy.deepcopy(calculator)         # attach calculator
+        energy = atoms.get_potential_energy()  # compute energy
+        atoms.info['static_energy'] = energy
+        atoms.info['static_energy_per_fragment'] = energy  / atoms.info['n_fragments'] # store energy
+
+    # Sort by stored energy
+    sorted_list = sorted(atoms_list, key=lambda x: x.info['static_energy_per_fragment'])
+    return sorted_list
 
 # class ProbeLineOpt:
 #     def __init__(self, ref_atoms, probe_atom, coordinates, vectors):
