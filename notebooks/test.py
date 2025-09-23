@@ -37,7 +37,7 @@ print(f'{f.conformers[0].positions.shape = }')
 # view([f.get_conformer(i) for i, _ in enumerate(f.conformers)])
 
 
-probes = [f]#, Atoms(['H'], [[0,0,0]])]
+probes = [Atoms(['H'], [[0,0,0]])] #f]#
 m.run_probe_scan(probes)
 
 for k, v in m.grid_atoms.arrays.items():
