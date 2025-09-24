@@ -1,4 +1,0 @@
-autoadsorbate==0.2.4
-networkx>=3.5
-plyfile>=1.1.2
-tqdm>=4.67.1

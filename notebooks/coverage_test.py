@@ -7,33 +7,39 @@ import numpy as np
 from ase.visualize import view
 import matplotlib.pyplot as plt
 
-from mace.calculators import mace_mp
-calc = mace_mp(model=
-               '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
-               device='cpu',
-               head='matpes_r2scan')
+# from mace.calculators import mace_mp
+# calc = mace_mp(model=
+#                '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
+#                device='cpu',
+#                head='matpes_r2scan')
 
-atoms = read('./test_particle.xyz')
+atoms = read(
+    '../examples/Cu_smash/run_20250826-072304_2bb6cead_sphere_500-run_20250826-072304_2bb6cead_md.xyz',
+    index=10)
 print(f'{len(atoms) = }')
 
 m = Manifold(
     atoms,
-    precision = 1.,
+    precision = 1.5,
     mode = 'particle',
     touch_sphere_size = 3.5,
-    calc = calc
+    # calc = calc
     )
 
-f = Fragment('Cl[PH+](CC(C)C)(CC(C)C)', to_initialize=1, prune_rms_thresh=.0001)
+print(f'{m.grid_atoms = }')
+write('xx.xyz', m.grid_atoms+m.atoms)
+# m.write_grid('xx.xyz')
 
-m.make_fragment_population(
-    population_size = 30,
-    fragment = f,
-    coverage = .8
-    )
+# f = Fragment('Cl[PH+](CC(C)C)(CC(C)C)', to_initialize=1, prune_rms_thresh=.0001)
 
-m.evaluate_surf_population()
+# m.make_fragment_population(
+#     population_size = 30,
+#     fragment = f,
+#     coverage = .8
+#     )
 
-write('surf_pop.xyz', m.surf_population)
-plt.plot([a.info['static_energy'] for a in m.surf_population])
-plt.show()
+# m.evaluate_surf_population()
+
+# write('surf_pop.xyz', m.surf_population)
+# plt.plot([a.info['static_energy'] for a in m.surf_population])
+# plt.show()

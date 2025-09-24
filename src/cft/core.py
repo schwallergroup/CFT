@@ -17,7 +17,7 @@ from .mesh_utils import (
     select_non_interacting_vertices,
     estimate_radius_decay,
 )
-from .dynamics import ProbeScan, evaluate_and_sort_atoms_by_energy
+from .dynamics import ProbeScan, StaticEval
 
 class Manifold(Surface):
     """
@@ -331,5 +331,9 @@ class Manifold(Surface):
             raise ValueError(f'Surface population is not generated: {self.surf_population = }.\n \
                              To create surface population use: Manifold.make_fragment_population()')
         
-        self.surf_population = evaluate_and_sort_atoms_by_energy(self.surf_population, self.calc)
+        # self.surf_population = evaluate_and_sort_atoms_by_energy(self.surf_population, self.calc)
+
+        dyn = StaticEval(self.calc)
+        dyn.run(self.surf_population)
+
         

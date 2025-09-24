@@ -139,6 +139,65 @@ def evaluate_and_sort_atoms_by_energy(atoms_list: List[Atoms], calculator) -> Li
     sorted_list = sorted(atoms_list, key=lambda x: x.info['static_energy_per_fragment'])
     return sorted_list
 
+from ase import Atoms
+from collections import defaultdict
+from typing import List
+from tqdm import tqdm
+
+
+from ase import Atoms
+from collections import defaultdict
+from typing import List
+from tqdm import tqdm
+import copy
+
+
+class StaticEval:
+    """Efficiently calculate potential energies by grouping identical compositions."""
+    
+    def __init__(self, calculator):
+        self.clean_calc = copy.deepcopy(calculator)
+        
+    def run(self, atoms_list: List[Atoms]) -> List[Atoms]:
+        """Calculate energies and store in atoms.info['static_energy']."""
+        if not atoms_list:
+            return atoms_list
+            
+        groups = self._group_atoms(atoms_list)
+        
+        with tqdm(total=len(atoms_list), desc="Calculating energies") as pbar:
+            for indices, template_atoms in groups.values():
+                template_atoms.calc = copy.deepcopy(self.clean_calc)
+                
+                for idx in indices:
+                    atoms = atoms_list[idx]
+                    template_atoms.set_positions(atoms.get_positions())
+                    template_atoms.set_cell(atoms.get_cell())
+                    
+                    # try:
+                    energy = template_atoms.get_potential_energy()
+                    atoms.info['static_energy'] = energy
+                    # except:
+                    #     atoms.info['static_energy'] = None
+                    
+                    pbar.update(1)
+                        
+        return atoms_list
+    
+    def _group_atoms(self, atoms_list: List[Atoms]) -> dict:
+        """Group atoms by composition and ordering."""
+        groups = defaultdict(list)
+        
+        for i, atoms in enumerate(atoms_list):
+            key = (len(atoms), tuple(atoms.get_chemical_symbols()))
+            groups[key].append(i)
+        
+        return {key: (indices, atoms_list[indices[0]].copy()) 
+                for key, indices in groups.items()}
+
+
+
+
 # class ProbeLineOpt:
 #     def __init__(self, ref_atoms, probe_atom, coordinates, vectors):
 #         """
