@@ -12,8 +12,6 @@ from ase.io import Trajectory
 import matplotlib.pyplot as plt
 from ase.optimize import BFGS
 
-
-
 def main():
     # print(f'{len(atoms) = }')
 
@@ -37,15 +35,15 @@ def main():
 
     # write('surf_pop.xyz', m.surf_population)
 
-    surf_population = read('surf_pop.xyz', index=':')
+    surf_population = read('/scratch/fako/cft_Cu_smash/surf_pop.xyz', index=':')
 
-    for i in range(10):
+    for i in range(0, 5):
 
         selected_atoms = surf_population[i].copy()
         c = FixAtoms(indices=[atom.index for atom in selected_atoms if atom.symbol == 'Cu'])
         selected_atoms.set_constraint(c) 
         selected_atoms.calc = copy.deepcopy(clean_calc)
-        traj = Trajectory(f'relaxation_top{i}.traj', 'w', atoms)
+        traj = Trajectory(f'relaxation_top{i}.traj', 'w', selected_atoms)
         optimizer = BFGS(selected_atoms, trajectory=traj)
         optimizer.run(fmax = fmax)
 
@@ -73,6 +71,19 @@ def main():
 
         mp.write_grid(f'grd_top{i}.xyz', inclde_atoms=False)
 
+        mp.atoms = selected_atoms[selected_atoms.arrays['fragments'] < 1]
+        mp.atoms.calc  = copy.deepcopy(clean_calc)
+
+        _ = mp.grid_atoms.arrays[f'e_{name}'].pop()
+        _ = mp.grid_atoms.arrays[f'grad_e_{name}'].pop()
+        _ = mp.grid_atoms.arrays[f'grad_norm_e_{name}'].pop()
+
+
+        mp.run_probe_scan(probes)
+        mp.write_grid(f'grd_top{i}_naked.xyz', inclde_atoms=False)
+
+
+
 #####################################################################################
 
 precision = 1.5
@@ -82,19 +93,19 @@ fmax = 0.1
 
 clean_calc = mace_mp(model=
             #    '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
-               '/home/fako/data/mace_models/mace-mh-nl-pbe.model',
+               #'/home/fako/data/mace_models/mace-mh-nl-pbe.model',
+               '/home/fako/projects/models/mace-omat-0-medium.model',
                device='cuda',
-               head='matpes_r2scan')
+               #head='matpes_r2scan'
+               )
 
-atoms = read(
-        './run_20250826-072304_2bb6cead_sphere_500-run_20250826-072304_2bb6cead_md.xyz',
-        index=20)
-    
-f = Fragment('Cl[PH+](CC(C)C)(CC(C)C)', to_initialize=100, prune_rms_thresh=.0001)
+#atoms = read(
+#        './run_20250826-072304_2bb6cead_sphere_500-run_20250826-072304_2bb6cead_md.xyz',
+#        index=20)
+#f = Fragment('Cl[PH+](CC(C)C)(CC(C)C)', to_initialize=100, prune_rms_thresh=.0001)
 
 
 if __name__ == '__main__':
     main()
-
 # plt.plot([a.info['static_energy'] for a in m.surf_population])
 # plt.show()
