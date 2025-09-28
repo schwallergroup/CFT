@@ -71,16 +71,28 @@ def main():
 
         mp.write_grid(f'grd_top{i}.xyz', inclde_atoms=False)
 
-        mp.atoms = selected_atoms[selected_atoms.arrays['fragments'] < 1]
-        mp.atoms.calc  = copy.deepcopy(clean_calc)
 
-        _ = mp.grid_atoms.arrays[f'e_{name}'].pop()
-        _ = mp.grid_atoms.arrays[f'grad_e_{name}'].pop()
-        _ = mp.grid_atoms.arrays[f'grad_norm_e_{name}'].pop()
+        reuse = {
+                'grid': mp.grid.copy(),
+                'normals': mp.normals.copy(),
+                'faces': mp.faces.copy()
+                }
 
 
-        mp.run_probe_scan(probes)
-        mp.write_grid(f'grd_top{i}_naked.xyz', inclde_atoms=False)
+        mp_naked = Manifold(
+            atoms = selected_atoms[selected_atoms.arrays['fragments'] < 1],
+            precision = precision,
+            mode = 'particle',
+            touch_sphere_size = 2.5,
+            calc = copy.deepcopy(clean_calc)
+            )
+
+        mp_naked.grid = reuse['grid']
+        mp_naked.normals = reuse['normals']
+        mp_naked.faces = reuse['faces']
+
+        mp_naked.run_probe_scan(probes)
+        mp_naked.write_grid(f'grd_top{i}_naked.xyz', inclde_atoms=False)
 
 
 
