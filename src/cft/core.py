@@ -93,6 +93,8 @@ class Manifold(Surface):
         if self.calc is None:
             raise ValueError(f'Please provide ase calculator to Manifold.calc.')
         
+        self.ref_energy_dict = self.evaluate_references(probes=probes)
+        
         for probe in probes:
 
             if type(probe) == Atoms and len(probe) != 1:
