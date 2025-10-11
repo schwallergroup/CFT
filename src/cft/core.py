@@ -121,6 +121,34 @@ class Manifold(Surface):
             self.grid_atoms.arrays[f'grad_e_{name}'] = grads
             self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
 
+    def evaluate_references(self, probes: List[Union[Fragment, Atoms]]):
+        """
+        Computes reference energy for each probe as atoms.get_potential_energy() + probe.get_potential_energy()
+        Parameters
+        ----------
+        probes : List[Union[Fragment, Atoms]]
+            A list of probe objects, each being either a Fragment or an Atoms instance.
+            If an Atoms object contains more than one atom, it is skipped with a warning.
+        returns dict of reference energies
+        """
+        import copy
+        _atoms = self.atoms.copy()
+        _atoms.calc= copy.deepcopy(self.calc)
+        e_ref = _atoms.get_potential_energy()
+
+        ref_dict = {}
+
+        p_atoms = Atoms()
+        for p in probes:
+            attach_fragment(
+                atoms=p_atoms,
+                site_dict={'coordinates': [0,0,0],'n_vector': [0,0,1]},
+                fragment=p
+                )
+            p_atoms.calc= copy.deepcopy(self.clac)
+            ref_dict['e_'+p.smile] = p_atoms.get_potential_energy() + e_ref
+        return ref_dict
+
     def get_non_interacting_vertices(self, radius=3.0, decay=1.5, randomize=True):
         """
         Returns a selection of non-interacting vertices from the grid.
