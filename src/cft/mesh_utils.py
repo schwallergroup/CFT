@@ -140,32 +140,32 @@ def compute_outward_vertex_normals_quads(vertices, faces):
 
     return vnormals
 
-def save_ply_quads(filename, vertices, faces, normals=None):
-    """
-    Save a quad mesh to a .ply file with optional vertex normals.
-    Faces must be (N, 4) for quads.
-    """
-    vertex_data = []
-    for i in range(len(vertices)):
-        x, y, z = vertices[i]
-        if normals is not None:
-            nx, ny, nz = normals[i]
-            vertex_data.append((x, y, z, nx, ny, nz))
-        else:
-            vertex_data.append((x, y, z))
+# def save_ply_quads(filename, vertices, faces, normals=None):
+#     """
+#     Save a quad mesh to a .ply file with optional vertex normals.
+#     Faces must be (N, 4) for quads.
+#     """
+#     vertex_data = []
+#     for i in range(len(vertices)):
+#         x, y, z = vertices[i]
+#         if normals is not None:
+#             nx, ny, nz = normals[i]
+#             vertex_data.append((x, y, z, nx, ny, nz))
+#         else:
+#             vertex_data.append((x, y, z))
 
-    vertex_dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
-    if normals is not None:
-        vertex_dtype += [('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4')]
+#     vertex_dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
+#     if normals is not None:
+#         vertex_dtype += [('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4')]
 
-    vertex_array = np.array(vertex_data, dtype=vertex_dtype)
+#     vertex_array = np.array(vertex_data, dtype=vertex_dtype)
 
-    face_array = np.array([(face.tolist(),) for face in faces], dtype=[('vertex_indices', 'i4', (4,))])
+#     face_array = np.array([(face.tolist(),) for face in faces], dtype=[('vertex_indices', 'i4', (4,))])
 
-    el_verts = PlyElement.describe(vertex_array, 'vertex')
-    el_faces = PlyElement.describe(face_array, 'face')
+#     el_verts = PlyElement.describe(vertex_array, 'vertex')
+#     el_faces = PlyElement.describe(face_array, 'face')
 
-    PlyData([el_verts, el_faces], text=True).write(filename)
+#     PlyData([el_verts, el_faces], text=True).write(filename)
 
 def save_ply_quads(filename, vertices, faces, normals=None, vertex_colors=None):
     """

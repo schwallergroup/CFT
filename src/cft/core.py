@@ -5,7 +5,8 @@ from ase.calculators import calculator
 from ase.visualize import view
 from ase.io import read, write
 import random
-from autoadsorbate.Surf import attach_fragment
+from autoadsorbate.Surf import attach_fragment, get_shrinkwrap_ads_sites
+from autoadsorbate.Particle import get_shrinkwrap_particle_ads_sites
 
 from autoadsorbate import Surface, Fragment
 from .mesh_utils import (
@@ -50,9 +51,13 @@ class Manifold(Surface):
         save_ply(vertex_colors=None, filename='./quad_sphere_tmp.ply'):
             Saves the mesh data to a PLY file, optionally with vertex colors.
         """
-    def __init__(self, *args, calc: calculator = None, viz_marker='X', **kwargs):
+    def __init__(self, *args, calc: calculator = None, viz_marker='X', wrap_on: Literal['atoms', 'sites'] = 'sites',  **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.wrap_on = wrap_on
+        if self.wrap_on == 'sites':
+            self.grid, self.faces, _ = self._shrikwrap(self.sites_atoms)
+            
         self.faces = reorient_faces_from_seed(np.array(self.faces), self.grid)
         self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces)
         self.grid_atoms = Atoms([viz_marker for _ in self.grid], self.grid)
