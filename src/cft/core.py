@@ -145,11 +145,11 @@ class Manifold(Surface):
             attach_fragment(
                 atoms=p_atoms,
                 site_dict={'coordinates': [0,0,0],'n_vector': [0,0,1]},
-                fragment=p,
+                fragment=p.get_conformer(0),
                 n_rotation=0,
                 height=0.
                 )
-            p_atoms.calc= copy.deepcopy(self.clac)
+            p_atoms.calc= copy.deepcopy(self.calc)
             ref_dict['e_'+p.smile] = p_atoms.get_potential_energy() + e_ref
         return ref_dict
 
