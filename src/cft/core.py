@@ -17,6 +17,7 @@ from .mesh_utils import (
     compute_gradients_per_column,
     select_non_interacting_vertices,
     estimate_radius_decay,
+    compute_vertex_areas
 )
 from .dynamics import ProbeScan, StaticEval
 
@@ -64,6 +65,8 @@ class Manifold(Surface):
         self.calc = calc
         self.probe_names = list()
         self.surf_population = None
+        self.grid_area = compute_vertex_areas(self.grid, self.faces)
+        self.grid_atoms.arrays['area'] = self.grid_area
     
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
         """

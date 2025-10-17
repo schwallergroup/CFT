@@ -579,3 +579,41 @@ def estimate_radius_decay(atoms_list, rmax=None):
 
     return float(radius), float(decay)
 
+def compute_vertex_areas(vertices, faces):
+    """
+    Compute per-vertex surface area contribution for a mesh with arbitrary polygonal faces.
+
+    Parameters
+    ----------
+    vertices : (N, 3) array
+        Vertex coordinates.
+    faces : list of lists or array-like
+        Each element is a list of vertex indices forming a face (any length >= 3).
+
+    Returns
+    -------
+    vertex_area : (N,) array
+        Surface area contribution for each vertex.
+    """
+    vertices = np.asarray(vertices, dtype=float)
+    n_vertices = len(vertices)
+    vertex_area = np.zeros(n_vertices)
+
+    for f in faces:
+        f = np.asarray(f, dtype=int)
+        if len(f) < 3:
+            continue  # skip degenerate faces
+
+        # fan triangulation: pick vertex 0, form triangles (0, i, i+1)
+        face_area = 0.0
+        v0 = vertices[f[0]]
+
+        for i in range(1, len(f) - 1):
+            v1, v2 = vertices[f[i]], vertices[f[i + 1]]
+            tri_area = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0))
+            face_area += tri_area
+
+        # distribute area equally among the vertices of this face
+        vertex_area[f] += face_area / len(f)
+
+    return vertex_area
