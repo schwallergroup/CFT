@@ -577,7 +577,7 @@ def estimate_radius_decay(atoms_list, rmax=None):
     radius = np.percentile(dists, 5)   # "core" distance
     decay = np.percentile(dists, 95) - radius
 
-    return float(radius), float(decay)
+    return float(radius), float(decay+1.)
 
 def compute_vertex_areas(vertices, faces):
     """
