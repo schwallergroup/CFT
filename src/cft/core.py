@@ -1,12 +1,19 @@
 import numpy as np
 from ase import Atoms
-from typing import Literal, Union, Iterable, List, Annotated
+from typing import (
+    Literal, Union, Iterable, List,
+    Annotated, Dict, Any, Optional
+    )
 from ase.calculators import calculator
 from ase.visualize import view
 from ase.io import read, write
 import random
 from autoadsorbate.Surf import attach_fragment, get_shrinkwrap_ads_sites
 from autoadsorbate.Particle import get_shrinkwrap_particle_ads_sites
+from ase.db import connect
+import uuid
+import os
+import json
 
 from autoadsorbate import Surface, Fragment
 from .mesh_utils import (
@@ -67,6 +74,7 @@ class Manifold(Surface):
         self.surf_population = None
         self.grid_area = compute_vertex_areas(self.grid, self.faces)
         self.grid_atoms.arrays['area'] = self.grid_area
+        self._id = uuid.uuid4().hex
     
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
         """
@@ -125,6 +133,74 @@ class Manifold(Surface):
             self.grid_atoms.arrays[f'e_{name}'] = energies
             self.grid_atoms.arrays[f'grad_e_{name}'] = grads
             self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
+
+    def write_to_db(
+        self,
+        atoms_list: Union[Atoms, List[Atoms]],
+        db_path: Optional[str] = None,
+        mode: str = 'a',
+        **global_metadata
+    ) -> None:
+        """
+        Writes Atoms objects to an ASE database, saving all info and arrays.
+
+        The database path is handled intelligently:
+        - If db_path is None (default), creates 'db_{self._id}.db' in the current dir.
+        - If db_path is a directory, creates 'db_{self._id}.db' inside it.
+        - If db_path is a full file path, uses that path directly.
+
+        Args:
+            atoms_list: A single Atoms object or a list of them.
+            db_path: Optional path to a directory or a specific .db file.
+            mode: 'w' (write/overwrite) or 'a' (append).
+            **global_metadata: Metadata to add to every structure's key-value pairs.
+        """
+        if isinstance(atoms_list, Atoms):
+            atoms_list = [atoms_list]
+        if not atoms_list:
+            print("Warning: List of atoms is empty. Nothing to write.")
+            return
+
+        if db_path is None:
+            db_file = f"db_{self._id}.db"
+        elif os.path.isdir(db_path):
+            os.makedirs(db_path, exist_ok=True)
+            db_file = os.path.join(db_path, f"db_{self._id}.db")
+        else:
+            db_file = db_path
+        
+        print(f"Connecting to ASE database at: {db_file} (mode='{mode}')")
+        
+        with connect(db_file, append=(mode == 'a')) as db:
+            for i, atoms in enumerate(atoms_list):
+                # Prepare key-value pairs from atoms.info
+                key_value_pairs = atoms.info.copy()
+                key_value_pairs.update(global_metadata)
+                safe_key_value_pairs = _serialize_metadata(key_value_pairs)
+                
+                # Prepare data dictionary for custom arrays from atoms.arrays
+                standard_arrays = [
+                    'numbers', 'positions', 'pbc', 'initial_magmoms',
+                    'initial_charges', 'masses', 'tags', 'momenta', 'constraints'
+                ]
+                custom_data = {
+                    name: array
+                    for name, array in atoms.arrays.items()
+                    if name not in standard_arrays
+                }
+
+                # Write everything to the database
+                db.write(
+                    atoms,
+                    key_value_pairs=safe_key_value_pairs,
+                    data=custom_data
+                )
+                
+                if (i + 1) % 10 == 0:
+                    print(f"  ... Wrote {i+1}/{len(atoms_list)} structures")
+                    
+        print(f"Successfully wrote {len(atoms_list)} structures to the database: {db_file}")
+
 
     def evaluate_references(self, probes: List[Union[Fragment, Atoms]]):
         """
@@ -377,3 +453,174 @@ class Manifold(Surface):
         dyn.run(self.surf_population)
 
         
+def _serialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Serializes complex data types in a metadata dictionary to JSON strings.
+
+    This function iterates through a dictionary and converts any lists or
+    dictionaries into their JSON string representation, making them safe
+    to store in an ASE database.
+
+    Args:
+        metadata (Dict[str, Any]): The input dictionary (e.g., atoms.info).
+
+    Returns:
+        Dict[str, Any]: A new dictionary with complex types serialized.
+    """
+    serialized_kvp = {}
+    for key, value in metadata.items():
+        if isinstance(value, (list, dict)):
+            # If the value is a list or dict, dump it to a JSON string
+            serialized_kvp[key] = json.dumps(value)
+        elif isinstance(value, np.ndarray):
+            # Also handle numpy arrays by converting them to lists first
+            serialized_kvp[key] = json.dumps(value.tolist())
+        else:
+            # Keep simple types (int, float, str, bool) as they are
+            serialized_kvp[key] = value
+    return serialized_kvp
+
+def _deserialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deserializes any JSON strings found in a metadata dictionary.
+    """
+    deserialized_kvp = {}
+    for key, value in metadata.items():
+        if isinstance(value, str):
+            try:
+                # Check for common JSON list/dict patterns
+                if (value.startswith('[') and value.endswith(']')) or \
+                   (value.startswith('{') and value.endswith('}')):
+                    deserialized_kvp[key] = json.loads(value)
+                else:
+                    deserialized_kvp[key] = value
+            except (json.JSONDecodeError, TypeError):
+                deserialized_kvp[key] = value
+        else:
+            deserialized_kvp[key] = value
+    return deserialized_kvp
+
+def db_to_traj(
+    db_path: str,
+    output_traj_path: Optional[str] = None,
+    selection_query: Optional[str] = None
+) -> List[Atoms]:
+    """
+    Reads structures from an ASE database and explicitly reconstructs them
+    into a list of Atoms objects, showing the manual process of restoring
+    all metadata (.info) and custom arrays (.arrays).
+
+    This function does NOT use the `row.toatoms()` shortcut.
+
+    Args:
+        db_path (str): Path to the input ASE database file.
+        output_traj_path (str, optional): If provided, the Atoms objects will be
+            written to this trajectory file.
+        selection_query (str, optional): An ASE database selection query string
+            to filter which structures are read.
+
+    Returns:
+        List[Atoms]: A list of all the read and fully reconstructed Atoms objects.
+    """
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database file not found at: {db_path}")
+
+    print(f"Reading from ASE database: {db_path}")
+    if selection_query:
+        print(f"Applying selection filter: '{selection_query}'")
+
+    atoms_list = []
+    with connect(db_path) as db:
+        for row in db.select(selection_query):
+            # --- Step 1: Deserialize key-value pairs for the .info dict ---
+            deserialized_info = _deserialize_metadata(row.key_value_pairs)
+
+            # --- Step 2: Create the base Atoms object ---
+            # Use the standard attributes from the row object.
+            atoms = Atoms(
+                numbers=row.numbers,
+                positions=row.positions,
+                cell=row.cell,
+                pbc=row.pbc,
+                info=deserialized_info
+            )
+            
+            # --- Step 3: Attach all custom per-atom arrays ---
+            # The custom arrays are stored in the `row.data` dictionary.
+            if row.data:
+                for name, array in row.data.items():
+                    # Use the .new_array() method to attach each array.
+                    atoms.new_array(name, array)
+            
+            # --- Step 4: Add the fully reconstructed object to our list ---
+            atoms_list.append(atoms)
+            
+    print(f"Successfully reconstructed {len(atoms_list)} structures from the database.")
+
+    # Optionally, write the list to a .traj file
+    if output_traj_path:
+        print(f"Writing {len(atoms_list)} structures to trajectory file: {output_traj_path}")
+        with Trajectory(output_traj_path, 'w') as traj:
+            for atoms in atoms_list:
+                traj.write(atoms)
+    
+    return atoms_list
+
+def db_to_traj_explicit(
+    db_path: str,
+    output_traj_path: Optional[str] = None,
+    selection_query: Optional[str] = None
+) -> List[Atoms]:
+    """
+    Explicitly reconstructs Atoms objects from a database, skipping corrupted rows.
+    """
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database file not found at: {db_path}")
+
+    print(f"Reading explicitly from ASE database: {db_path}")
+    if selection_query:
+        print(f"Applying selection filter: '{selection_query}'")
+
+    atoms_list = []
+    with connect(db_path) as db:
+        for row in db.select(selection_query):
+            try:
+                # --- This is the part of the process that can fail ---
+                # Reading standard attributes is usually safe.
+                numbers = row.numbers
+                positions = row.positions
+                cell = row.cell
+                pbc = row.pbc
+                
+                # The .data attribute for custom arrays is also usually safe.
+                custom_arrays = row.data
+                # ----------------------------------------------------
+
+                # Now, reconstruct the object
+                deserialized_info = _deserialize_metadata(row.key_value_pairs)
+                atoms = Atoms(
+                    numbers=numbers,
+                    positions=positions,
+                    cell=cell,
+                    pbc=pbc,
+                    info=deserialized_info
+                )
+                if custom_arrays:
+                    for name, array in custom_arrays.items():
+                        atoms.new_array(name, array)
+                
+                atoms_list.append(atoms)
+
+            except ValueError as e:
+                # --- Gracefully handle the error ---
+                print(f"\n[WARNING] Skipping row with ID={row.id} due to a reconstruction error.")
+                print(f"  > Error Type: ValueError")
+                print(f"  > Error Message: {e}")
+                print(f"  > This often indicates a corrupted or incompatible array in the database.\n")
+                continue # Move to the next row
+            
+    print(f"Successfully reconstructed {len(atoms_list)} structures from the database.")
+
+    # ... (writing to .traj file logic is the same) ...
+    
+    return atoms_list
