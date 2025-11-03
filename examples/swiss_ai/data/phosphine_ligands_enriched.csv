@@ -1,0 +1,26 @@
+Name,Category,SMILES,CAS,PubChem_CID,surrogateSMILES
+Triphenylphosphine,Triarylphosphine,c1ccccc1P(c2ccccc2)c3ccccc3,603-35-0,11776,Cl[P+](c1ccccc1)(c2ccccc2)c3ccccc3
+Tri(o-tolyl)phosphine,Triarylphosphine,Cc1ccccc1P(c2ccccc2C)c3ccccc3C,6163-58-2,287822,Cl[P+](c1ccccc1C)(c2ccccc2C)c3ccccc3C
+Tri(2-furyl)phosphine,Triarylphosphine,c1coc(c1)P(c2ccco2)c3ccco3,838-03-3,383767,Cl[P+](c1cocc1)(c2ccco2)c3ccco3
+Triisopropylphosphine,Alkylphosphine,CC(C)P(C(C)C)C(C)C,15428-64-5,6309,Cl[P+](C(C)C)(C(C)C)C(C)C
+Triethylphosphine,Alkylphosphine,CCP(CC)P(C)C,1493-86-5,6296,Cl[P+](CC)(CC)CC
+Trimethylphosphine,Alkylphosphine,P(C)C,124-40-3,6260,Cl[P+](C)(C)C
+Tri-n-butylphosphine,Alkylphosphine,CCCCP(CCCC)CCCC,998-40-5,10424,Cl[P+](CCCC)(CCCC)CCCC
+Tricyclohexylphosphine,Alkylphosphine,C1CCC(CC1)P(C2CCCCC2)C3CCCCC3,1026-26-6,75806,Cl[P+](C1CCCCC1)(C2CCCCC2)C3CCCCC3
+Tri(4-methoxyphenyl)phosphine,Triarylphosphine,COc1ccc(cc1)P(c2ccc(OC)cc2)c3ccc(OC)cc3,16616-01-4,108441,Cl[P+](c1ccc(OC)cc1)(c2ccc(OC)cc2)c3ccc(OC)cc3
+Tri(4-fluorophenyl)phosphine,Triarylphosphine,Fc1ccc(cc1)P(c2ccc(F)cc2)c3ccc(F)cc3,994-02-7,69159,Cl[P+](c1ccc(F)cc1)(c2ccc(F)cc2)c3ccc(F)cc3
+"Tri(3,5-dimethylphenyl)phosphine",Triarylphosphine,Cc1cc(cc(c1)C)P(c2cc(cc(c2)C)c3cc(cc(c3)C)),16616-05-8,108445,Cl[P+](c1cc(C)cc(C)c1)(c1cc(C)cc(C)c1)(c1cc(C)cc(C)c1)
+Triphenylphosphine oxide,Phosphine oxide,O=P(c1ccccc1)(c2ccccc2)c3ccccc3,791-28-6,6658,Cl[O+][P+](c1ccccc1)(c2ccccc2)c3ccccc3
+"Tris(2,4,6-triisopropylphenyl)phosphine",Triarylphosphine,CC(C)C1=CC(C(C)C)=CC(C(C)C)=C1P(C2=CC(C(C)C)=CC(C(C)C)=C2)C3=CC(C(C)C)=CC(C(C)C)=C3,,,Cl[P+](c1cc(C(C)C)cc(C(C)C)c1)(c1cc(C(C)C)cc(C(C)C)c1)(c1cc(C(C)C)cc(C(C)C)c1)
+BINAP,Chiral diphosphine,c1ccc(cc1)P(c2ccccc2)c3ccc4ccccc4c3c5c6ccccc6ccc5P(c7ccccc7)c8ccccc8,7689-50-5,62455
+DPPE,Bidentate diphosphine,c1ccccc1PCCP(c2ccccc2),17372-87-1,5310, S1S[P+](c2ccccc2)(c3ccccc3)CC[P+]1(c2ccccc2)c3ccccc3
+DPPP,Bidentate diphosphine,c1ccccc1PCCC(P(c2ccccc2))c3ccccc3,13662-64-9,65085,S1S[P+](c2ccccc2)(c3ccccc3)CCC[P+]1(c2ccccc2)c3ccccc3
+DPPB,Bidentate diphosphine,c1ccccc1PCCCC(P(c2ccccc2))c3ccccc3,64265-64-3,5311,S1S[P+](c2ccccc2)(c3ccccc3)CCCC[P+]1(c2ccccc2)c3ccccc3
+TPPTS,Water-soluble phosphine,[O-]S(=O)(=O)c1cccc(c1)P(c2cccc(c2)S(=O)(=O)[O-])c3cccc(c3)S(=O)(=O)[O-],15585-86-9,441561,Cl[P+](c1cc(S(=O)(=O)O)ccc1)(c1cc(S(=O)(=O)O)ccc1)(c1cc(S(=O)(=O)O)ccc1)
+XPhos,Dialkylbiarylphosphine,P(c2ccccc2c1c(cc(cc1C(C)C)C(C)C)C(C)C)(C3CCCCC3)C4CCCCC4,564483-18-7,11155794,Cl[P+](c2ccccc2c1c(cc(cc1C(C)C)C(C)C)C(C)C)(C3CCCCC3)C4CCCCC4
+SPhos,Dialkylbiarylphosphine,COc1ccc(cc1c2ccccc2P(C3CCCCC3)C4CCCCC4)OC,657408-07-6,11269872,Cl[P+](c1c(c2c(OC)cccc2(OC))cccc1)(C3CCCCC3)C4CCCCC4
+RuPhos,Dialkylbiarylphosphine,CC(C)Oc1cccc(OC(C)C)c1-c2ccccc2P(C3CCCCC3)C4CCCCC4,,,Cl[P+](c1c(c2c(OC(C)C)cccc2(OC(C)C))cccc1)(C3CCCCC3)C4CCCCC4
+BrettPhos,Dialkylbiarylphosphine,COc1c(P(C2CCCCC2)C3CCCCC3)c(c4c(C(C)C)cc(C(C)C)cc4C(C)C)c(OC)cc1,1227483-92-4,25112535,Cl[P+](C1CCCCC1)(C1CCCCC1)c1c(OC)ccc(OC)c1c2c(C(C)C)cc(C(C)C)cc2(C(C)C)
+JohnPhos,Dialkylbiarylphosphine,CC(C)(C)P(c1ccccc1)c2ccccc2,224311-51-7,2734215,Cl[P+](C(C)(C)C)(C(C)(C)C)c1ccccc1c2ccccc2
+DavePhos,Dialkylbiarylphosphine,CN(C)c1ccccc1-c2ccccc2P(C3CCCCC3)C4CCCCC4,,,Cl[P+](C3CCCCC3)(C4CCCCC4)c1ccccc1c2c(N(C)C)cccc2
+JackiePhos,Dialkylbiarylphosphine,COc1ccc(OC)c(c1P(c2cc(cc(c2)C(F)(F)F)C(F)(F)F)c3cc(cc(c3)C(F)(F)F)C(F)(F)F)-c4c(cc(cc4C(C)C)C(C)C)C(C)C,,,Cl[P+](c1c(c2c(OC(C)C)cccc2(OC(C)C))cccc1)(c3cc(C(F)(F)F)cc(C(F)(F)F)c3)c3cc(C(F)(F)F)cc(C(F)(F)F)c3
