@@ -1,7 +1,7 @@
 import numpy as np
 import networkx as nx
 from matplotlib import cm
-from typing import List, Sequence
+from typing import List, Sequence, Literal
 # from scipy.sparse import csr_matrix
 from collections import defaultdict
 from collections import defaultdict
@@ -106,7 +106,7 @@ def reorient_faces_from_seed(faces, vertices):
 
     return oriented_faces
 
-def compute_outward_vertex_normals_quads(vertices, faces):
+def compute_outward_vertex_normals_quads(vertices, faces, mode=Literal['particle', 'slab']):
     """
     Computes per-vertex normals from a quad mesh (faces.shape = (M, 4)).
     Ensures normals point outward for a closed surface.
@@ -132,8 +132,14 @@ def compute_outward_vertex_normals_quads(vertices, faces):
     vnormals /= np.linalg.norm(vnormals, axis=1, keepdims=True)
 
     # Ensure outward normals (based on center of mesh)
-    center = vertices.mean(axis=0)
-    outward = vertices - center
+    if mode == 'particle':
+        center = vertices.mean(axis=0)
+        outward = vertices - center
+    elif mode == 'slab':
+        outward = np.array([(0,0,1) for _ in vertices])
+    else:
+        raise ValueError(f'mode: {mode} not supported.')
+    
     dot = np.einsum("ij,ij->i", vnormals, outward)
     if np.mean(dot) < 0:
         vnormals *= -1

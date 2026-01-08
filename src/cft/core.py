@@ -70,7 +70,7 @@ class Manifold(Surface):
             self.grid, self.faces, _ = self._shrinkwrap(self.sites_atoms)
             
         self.faces = reorient_faces_from_seed(np.array(self.faces), self.grid)
-        self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces)
+        self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces, mode=self.mode)
         self.grid_atoms = Atoms([viz_marker for _ in self.grid], self.grid)
         self.calc = calc
         self.probe_names = list()
@@ -299,7 +299,7 @@ class Manifold(Surface):
         view_atoms = self.get_grid_atoms(inclde_atoms)
         view(view_atoms)
 
-    def view_hedgehog(self, marker='X'):
+    def view_hedgehog(self, marker='X', show_with_atoms=False):
         """
         Visualizes the grid atoms along their normal vectors, creating a "hedgehog" effect.
 
@@ -316,7 +316,10 @@ class Manifold(Surface):
         for i, v in enumerate(self.grid):
             for slide in np.arange(0,2, 0.2):
                 view_atoms+=Atoms([marker], [v+slide*self.normals[i]])
-        view(view_atoms)
+        if show_with_atoms:
+            view(self.atoms+view_atoms)
+        else:
+            view(view_atoms)
 
     def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=False):
         """
