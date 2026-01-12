@@ -59,25 +59,29 @@ pip install .
 ```python
 from ase.build import fcc111, add_adsorbate
 from cft import Manifold
+from ase.visualize import view
+
+from autoadsorbate import Fragment
 from mace.calculators import mace_mp
 
 # 1. Setup the surface (Reference Structure)
 atoms = fcc111('Cu', size=(4, 4, 3), vacuum=10.0)
-calc = mace_mp(model="small", device="cuda") #any ase calulator can be provided
+calc = mace_mp(model="small", device="cpu") #any ase calulator can be provided
 
 # 2. Create the CFT Manifold
 # Mode can be 'slab' or 'particle'
-manifold = Manifold(atoms, mode='slab', precision=0.2, calculator=calc)
+manifold = Manifold(atoms, mode='slab', precision=.5, calc=calc, wrap_on='atoms')
 
 # 3. Define a Probe (*SMILES for a Methyl fragment)
-probe_smiles = "ClC" # Cl atom surves as a surrogate atom in this surrogate-SMILES formula.
+probe_smiles = [Fragment("ClC", to_initialize=1)] # Cl atom surves as a surrogate atom in this surrogate-SMILES formula.
 
 # 4. Run a continuous field scan
 results = manifold.run_probe_scan(probe_smiles)
 
 # 5. Visualize the "Hedgehog" (Normals) and Field
-manifold.view_hedgehog()
-manifold.view_grid(data=results['energies'])
+manifold.save_ply(filename='./test.ply')
+manifold.view_hedgehog(show_with_atoms=True)
+
 ```
 
 ---
