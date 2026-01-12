@@ -57,16 +57,17 @@ pip install .
 ## 💻 Quick Start
 
 ```python
+from ase.visualize import view
 from ase.build import fcc111, add_adsorbate
 from cft import Manifold
-from ase.visualize import view
-
 from autoadsorbate import Fragment
+
+# 0. Setup ASE calculator
 from mace.calculators import mace_mp
+calc = mace_mp(model="small", device="cpu") #any ASE calulator can be provided
 
 # 1. Setup the surface (Reference Structure)
 atoms = fcc111('Cu', size=(4, 4, 3), vacuum=10.0)
-calc = mace_mp(model="small", device="cpu") #any ase calulator can be provided
 
 # 2. Create the CFT Manifold
 # Mode can be 'slab' or 'particle'
