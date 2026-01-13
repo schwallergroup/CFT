@@ -6,8 +6,12 @@ from ase.visualize import view
 from ase.io import read, write
 import random
 from autoadsorbate.Surf import attach_fragment, get_shrinkwrap_ads_sites
-from autoadsorbate.Particle import get_shrinkwrap_particle_ads_sites
+from autoadsorbate.Particle import (
+    get_shrinkwrap_particle_ads_sites,
+    get_base_grid_particle,
+)
 from ase.db import connect
+from ase.io import Trajectory
 import uuid
 import os
 import json
@@ -83,6 +87,19 @@ class Manifold(Surface):
         self.grid_atoms.arrays["area"] = self.grid_area
         self._id = uuid.uuid4().hex
         self.use_torch_sim = use_torch_sim
+
+    def get_base_grid(self):
+        if self.mode == "particle":
+            return get_base_grid_particle(
+                particle_atoms=self.atoms,
+                grid_mode=self.grid_mode,
+                precision=self.precision,
+                touch_sphere_size=self.touch_sphere_size,
+            )
+        elif self.mode == "slab":
+            raise ValueError(f"{self.mode = }; slab - not supported yet.")
+        else:
+            raise ValueError(f"{self.mode = }; Unknown error.")
 
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
         """
