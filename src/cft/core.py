@@ -75,7 +75,7 @@ class Manifold(Surface):
 
         self.wrap_on = wrap_on
         if self.wrap_on == "sites":
-            self.grid, self.faces, _ = self._shrikwrap(self.sites_atoms)
+            self.grid, self.faces, _ = self._shrinkwrap(self.sites_atoms)
 
         self.faces = reorient_faces_from_seed(np.array(self.faces), self.grid)
         self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces)

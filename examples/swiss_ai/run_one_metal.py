@@ -8,11 +8,15 @@ import pandas as pd
 import argparse
 import uuid
 import torch
-import torch_sim as ts
-from torch_sim.runners import generate_force_convergence_fn
-from torch_sim.models.mace import MaceModel
-import numpy as np
 
+try:
+    import torch_sim as ts
+    from torch_sim.runners import generate_force_convergence_fn
+    from torch_sim.models.mace import MaceModel
+except ImportError:
+    print("torch-sim-atomistic not installed, defaulting to sequential optimization")
+import numpy as np
+import os
 
 from utils import check_all_p_bonded
 
@@ -54,23 +58,29 @@ def get_cluster_traj(xdf):
 
 
 def main(args):
+    root_dir = os.getenv("PROJECT_ROOT")
+
     probes = [Fragment("Cl[P]", to_initialize=1)]
 
     # calculator
+    models_dir = os.getenv("MODELS_DIR")
     clean_calc = mace_mp(
-        model="/cluster/project/krause/frankem/CFT/models/mace-mh-1.model",
+        model=os.path.join(models_dir, "mace-mh-1.model"),
         device="cuda" if torch.cuda.is_available() else "cpu",  # default = 'cuda'
         head="omat_pbe",  # default = 1.5
     )
-
-    mace_model = MaceModel(
-        model=copy.deepcopy(clean_calc.models[0]),
-        device="cuda" if torch.cuda.is_available() else "cpu",
-    )
+    try:
+        mace_model = MaceModel(
+            model=copy.deepcopy(clean_calc.models[0]),
+            device="cuda" if torch.cuda.is_available() else "cpu",
+        )
+    except:
+        mace_model = None
 
     # clusters
+    data_dir = os.path.join(root_dir, "examples", "swiss_ai", "data")
     df = pd.read_json(
-        "/cluster/project/krause/frankem/CFT/examples/swiss_ai/data/data.json",
+        os.path.join(data_dir,"data_json", "data.json"),
         lines=False,
     )
     df = df.T
@@ -85,7 +95,7 @@ def main(args):
 
     # fragments
     dfl = pd.read_csv(
-        "/cluster/project/krause/frankem/CFT/examples/swiss_ai/data/phosphine_ligands_enriched.csv",
+        os.path.join(data_dir, "phosphine_ligands_enriched.csv"),
         delimiter=",",
     )
     dfl = dfl.dropna()

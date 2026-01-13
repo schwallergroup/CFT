@@ -11,10 +11,12 @@ from itertools import product
 from typing import Union, Literal, List
 import copy
 import torch
-import torch_sim as ts
-from torch_sim.autobatching import BinningAutoBatcher
-from torch_sim.models.mace import MaceModel
-
+try:
+    import torch_sim as ts
+    from torch_sim.autobatching import BinningAutoBatcher
+    from torch_sim.models.mace import MaceModel
+except ImportError:
+    print("torch-sim-atomistic not installed, defaulting to sequential optimization")
 from multiprocessing import Pool
 from functools import partial
 from itertools import product
