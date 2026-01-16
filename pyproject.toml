@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "autoadsorbate==0.2.4",
+    "autoadsorbate<=0.2.5",
     "networkx>=3.5",
     "plyfile>=1.1.2",
     "tqdm>=4.67.1",
