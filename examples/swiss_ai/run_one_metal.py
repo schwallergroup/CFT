@@ -51,6 +51,7 @@ def get_cluster_traj(xdf):
         xyz_lines = row["structure_xyz"]
         atoms = atoms_from_string(xyz_lines)
         metadata = {col: row[col] for col in meta_columns}
+        atoms.info["cluster_id"] = metadata["cluster_id"]
 
         cluster_trj.append(atoms)
 
@@ -77,16 +78,19 @@ def main(args):
     except:
         mace_model = None
 
+    progress_file = os.path.join(root_dir, "progress_configs.csv")
+    if not os.path.exists(progress_file):
+        with open(progress_file, "w") as f:
+            f.write("cluster_id,fragment_name,fragment_category,num_relaxed,success\n")
+
     # clusters
     data_dir = os.path.join(root_dir, "examples", "swiss_ai", "data")
     df = pd.read_json(
-        os.path.join(data_dir,"data_json", "data.json"),
+        os.path.join(data_dir, "data_json", "data.json"),
         lines=False,
     )
     df = df.T
-    df = df[
-        (df["energy_relative"] < 0.1) & df.element_symbol.isin([args.metal])
-    ].copy()  # & (df['n_atoms'].astype(int) > 50)
+    df = df[(df["energy_relative"] < 0.1) & df.element_symbol.isin([args.metal])].copy()
 
     # shuffle df to randomize the order of the configurations
     df = df.sample(frac=1).reset_index(drop=True)
@@ -132,8 +136,11 @@ def main(args):
         print(f"{len(m.grid) = }")
 
         fragment_categories = dfl["Category"].values
+        fragment_names = dfl["Name"].values
 
-        for f, f_category in zip(fragments, fragment_categories):
+        for f, f_category, f_name in zip(
+            fragments, fragment_categories, fragment_names
+        ):
             # Category can be used to ensure we have a good coverage across all ligand categories
             print(f"{f_category = }")
 
@@ -269,6 +276,13 @@ def main(args):
 
                 num_relaxed += len(relaxed_trj)
 
+            success = num_relaxed >= min_num_relaxed
+            progress_text = f"{atoms.info['cluster_id']}, {f_name}, {f_category}, {num_relaxed}, {success}\n"
+
+            # write to progress file
+            with open(progress_file, "a") as f:
+                f.write(progress_text)
+
 
 #####################################################################################
 
@@ -280,14 +294,13 @@ if __name__ == "__main__":
     parser.add_argument("--metal", type=str)
     parser.add_argument("--precision", type=float, default=1.5)
     parser.add_argument("--touch_sphere_size", type=float, default=3.5)
-    parser.add_argument("--population_size", type=int, default=200)
+    parser.add_argument("--population_size", type=int, default=1000)
     parser.add_argument("--to_relax", type=int, default=10)
     parser.add_argument("--coverage", type=float, default=0.99)
     parser.add_argument("--fmax", type=float, default=0.02)
     parser.add_argument("--prune_rms_thresh", type=float, default=0.01)
     parser.add_argument("--f_conformers", type=int, default=200)
     parser.add_argument("--db_file", type=str, default="db_out.db")
-    parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--use_torch_sim", action="store_true")
     parser.add_argument("--max_retries", type=int, default=5)
     args = parser.parse_args()
