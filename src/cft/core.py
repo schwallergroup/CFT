@@ -1,9 +1,6 @@
 import numpy as np
 from ase import Atoms
-from typing import (
-    Literal, Union, Iterable, List,
-    Annotated, Dict, Any, Optional
-    )
+from typing import Literal, Union, Iterable, List, Annotated, Dict, Any, Optional
 from ase.calculators import calculator
 from ase.visualize import view
 from ase.io import read, write
@@ -11,9 +8,10 @@ import random
 from autoadsorbate.Surf import attach_fragment, get_shrinkwrap_ads_sites
 from autoadsorbate.Particle import (
     get_shrinkwrap_particle_ads_sites,
-    get_base_grid_particle
-    )
+    get_base_grid_particle,
+)
 from ase.db import connect
+from ase.io import Trajectory
 import uuid
 import os
 import json
@@ -27,13 +25,14 @@ from .mesh_utils import (
     compute_gradients_per_column,
     select_non_interacting_vertices,
     estimate_radius_decay,
-    compute_vertex_areas
+    compute_vertex_areas,
 )
 from .dynamics import ProbeScan, StaticEval
 
+
 class Manifold(Surface):
     """
-    Represents a geometric manifold constructed from a grid of vertices and faces, 
+    Represents a geometric manifold constructed from a grid of vertices and faces,
     supporting probe scanning, visualization, and mesh export functionalities.
     Inherits from:
         Surface
@@ -61,8 +60,17 @@ class Manifold(Surface):
             Visualizes grid vertices with their normals as "hedgehog" markers.
         save_ply(vertex_colors=None, filename='./quad_sphere_tmp.ply'):
             Saves the mesh data to a PLY file, optionally with vertex colors.
-        """
-    def __init__(self, *args, calc: calculator = None, viz_marker='X', wrap_on: Literal['atoms', 'sites'] = 'sites',  **kwargs):
+    """
+
+    def __init__(
+        self,
+        *args,
+        calc: calculator = None,
+        viz_marker="X",
+        wrap_on: Literal["atoms", "sites"] = "sites",
+        use_torch_sim: bool = False,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.wrap_on = wrap_on
@@ -76,23 +84,23 @@ class Manifold(Surface):
         self.probe_names = list()
         self.surf_population = None
         self.grid_area = compute_vertex_areas(self.grid, self.faces)
-        self.grid_atoms.arrays['area'] = self.grid_area
+        self.grid_atoms.arrays["area"] = self.grid_area
         self._id = uuid.uuid4().hex
+        self.use_torch_sim = use_torch_sim
 
     def get_base_grid(self):
-        if self.mode == 'particle':
+        if self.mode == "particle":
             return get_base_grid_particle(
-                particle_atoms= self.atoms,
-                grid_mode = self.grid_mode,
-                precision = self.precision,
-                touch_sphere_size = self.touch_sphere_size,
+                particle_atoms=self.atoms,
+                grid_mode=self.grid_mode,
+                precision=self.precision,
+                touch_sphere_size=self.touch_sphere_size,
             )
-        elif self.mode == 'slab':
-            raise ValueError(f'{self.mode = }; slab - not supported yet.')
+        elif self.mode == "slab":
+            raise ValueError(f"{self.mode = }; slab - not supported yet.")
         else:
-            raise ValueError(f'{self.mode = }; Unknown error.')
-    
-    
+            raise ValueError(f"{self.mode = }; Unknown error.")
+
     def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
         """
         Scans a set of probe molecules or atoms over a predefined grid on the reference structure,
@@ -119,23 +127,25 @@ class Manifold(Surface):
         """
 
         if self.calc is None:
-            raise ValueError(f'Please provide ase calculator to Manifold.calc.')
-        
-        self.ref_energy_dict = self.evaluate_references(probes=probes)
-        
-        for probe in probes:
+            raise ValueError(f"Please provide ase calculator to Manifold.calc.")
 
+        self.ref_energy_dict = self.evaluate_references(probes=probes)
+
+        for probe in probes:
             if type(probe) == Atoms and len(probe) != 1:
-                Warning(f'{probe = } has more than one atoms. Please pass Fragments object.')
+                Warning(
+                    f"{probe = } has more than one atoms. Please pass Fragments object."
+                )
                 continue
 
             ref_atoms = self.atoms.copy()
             ref_atoms.calc = self.calc
             dyn = ProbeScan(
-                ref_atoms = ref_atoms,
-                probe = probe,
-                vertices = self.grid,
-                normals = self.normals,
+                ref_atoms=ref_atoms,
+                probe=probe,
+                vertices=self.grid,
+                normals=self.normals,
+                use_torch_sim=self.use_torch_sim,
             )
             energies = dyn.run()
 
@@ -145,18 +155,20 @@ class Manifold(Surface):
                 name = probe.smile
             self.probe_names.append(name)
 
-            grads, grad_norms = compute_gradients_per_column(energies, self.grid, self.faces)
+            grads, grad_norms = compute_gradients_per_column(
+                energies, self.grid, self.faces
+            )
 
-            self.grid_atoms.arrays[f'e_{name}'] = energies
-            self.grid_atoms.arrays[f'grad_e_{name}'] = grads
-            self.grid_atoms.arrays[f'grad_norm_e_{name}'] = grad_norms
+            self.grid_atoms.arrays[f"e_{name}"] = energies
+            self.grid_atoms.arrays[f"grad_e_{name}"] = grads
+            self.grid_atoms.arrays[f"grad_norm_e_{name}"] = grad_norms
 
     def write_to_db(
         self,
         atoms_list: Union[Atoms, List[Atoms]],
         db_path: Optional[str] = None,
-        mode: str = 'a',
-        **global_metadata
+        mode: str = "a",
+        **global_metadata,
     ) -> None:
         """
         Writes Atoms objects to an ASE database, saving all info and arrays.
@@ -185,20 +197,27 @@ class Manifold(Surface):
             db_file = os.path.join(db_path, f"db_{self._id}.db")
         else:
             db_file = db_path
-        
+
         print(f"Connecting to ASE database at: {db_file} (mode='{mode}')")
-        
-        with connect(db_file, append=(mode == 'a')) as db:
+
+        with connect(db_file, append=(mode == "a")) as db:
             for i, atoms in enumerate(atoms_list):
                 # Prepare key-value pairs from atoms.info
                 key_value_pairs = atoms.info.copy()
                 key_value_pairs.update(global_metadata)
                 safe_key_value_pairs = _serialize_metadata(key_value_pairs)
-                
+
                 # Prepare data dictionary for custom arrays from atoms.arrays
                 standard_arrays = [
-                    'numbers', 'positions', 'pbc', 'initial_magmoms',
-                    'initial_charges', 'masses', 'tags', 'momenta', 'constraints'
+                    "numbers",
+                    "positions",
+                    "pbc",
+                    "initial_magmoms",
+                    "initial_charges",
+                    "masses",
+                    "tags",
+                    "momenta",
+                    "constraints",
                 ]
                 custom_data = {
                     name: array
@@ -207,17 +226,14 @@ class Manifold(Surface):
                 }
 
                 # Write everything to the database
-                db.write(
-                    atoms,
-                    key_value_pairs=safe_key_value_pairs,
-                    data=custom_data
-                )
-                
-                if (i + 1) % 10 == 0:
-                    print(f"  ... Wrote {i+1}/{len(atoms_list)} structures")
-                    
-        print(f"Successfully wrote {len(atoms_list)} structures to the database: {db_file}")
+                db.write(atoms, key_value_pairs=safe_key_value_pairs, data=custom_data)
 
+                if (i + 1) % 10 == 0:
+                    print(f"  ... Wrote {i + 1}/{len(atoms_list)} structures")
+
+        print(
+            f"Successfully wrote {len(atoms_list)} structures to the database: {db_file}"
+        )
 
     def evaluate_references(self, probes: List[Union[Fragment, Atoms]]):
         """
@@ -230,8 +246,9 @@ class Manifold(Surface):
         returns dict of reference energies
         """
         import copy
+
         _atoms = self.atoms.copy()
-        _atoms.calc= copy.deepcopy(self.calc)
+        _atoms.calc = copy.deepcopy(self.calc)
         e_ref = _atoms.get_potential_energy()
 
         ref_dict = {}
@@ -240,13 +257,13 @@ class Manifold(Surface):
         for p in probes:
             attach_fragment(
                 atoms=p_atoms,
-                site_dict={'coordinates': [0,0,0],'n_vector': [0,0,1]},
+                site_dict={"coordinates": [0, 0, 0], "n_vector": [0, 0, 1]},
                 fragment=p.get_conformer(0),
                 n_rotation=0,
-                height=0.
-                )
-            p_atoms.calc= copy.deepcopy(self.calc)
-            ref_dict['e_'+p.smile] = p_atoms.get_potential_energy() + e_ref
+                height=0.0,
+            )
+            p_atoms.calc = copy.deepcopy(self.calc)
+            ref_dict["e_" + p.smile] = p_atoms.get_potential_energy() + e_ref
         return ref_dict
 
     def get_non_interacting_vertices(self, radius=3.0, decay=1.5, randomize=True):
@@ -266,15 +283,15 @@ class Manifold(Surface):
             list: A list of non-interacting vertices selected from the grid.
         """
         return select_non_interacting_vertices(
-            self.grid, radius=radius, decay=decay, randomize=randomize)
-
+            self.grid, radius=radius, decay=decay, randomize=randomize
+        )
 
     def get_grid_atoms(self, inclde_atoms=True):
         """
         Returns the grid atoms, optionally including additional atoms.
 
         Args:
-            inclde_atoms (bool, optional): If True, includes both self.atoms and self.grid_atoms in the output. 
+            inclde_atoms (bool, optional): If True, includes both self.atoms and self.grid_atoms in the output.
                 If False, returns only self.grid_atoms. Defaults to True.
 
         Returns:
@@ -320,8 +337,11 @@ class Manifold(Surface):
             view(self.atoms+view_atoms)
         else:
             view(view_atoms)
+            for slide in np.arange(0, 2, 0.2):
+                view_atoms += Atoms([marker], [v + slide * self.normals[i]])
+        view(view_atoms)
 
-    def write_grid(self, filename: str = 'tmp.xyz', inclde_atoms=False):
+    def write_grid(self, filename: str = "tmp.xyz", inclde_atoms=False):
         """
         Writes the grid atoms and associated probe data to a file in XYZ format.
         Parameters
@@ -342,116 +362,122 @@ class Manifold(Surface):
         """
 
         if inclde_atoms:
-            raise ValueError('mode not yet supported')
-        
+            raise ValueError("mode not yet supported")
+
         out_atoms = self.grid_atoms.copy()
-        
+
         for name in self.probe_names:
-            energies = out_atoms.arrays.pop(f'e_{name}')
-            grads = out_atoms.arrays.pop(f'grad_e_{name}')
-            grad_norms = out_atoms.arrays.pop(f'grad_norm_e_{name}')
+            energies = out_atoms.arrays.pop(f"e_{name}")
+            grads = out_atoms.arrays.pop(f"grad_e_{name}")
+            grad_norms = out_atoms.arrays.pop(f"grad_norm_e_{name}")
 
             for j in range(energies.shape[1]):
-                    out_atoms.arrays[f'e_{name}_{j}'] = energies[:, j]             # (n_atoms,)
-                    out_atoms.arrays[f'grad_norm_e_{name}_{j}'] = grad_norms[:, j] # (n_atoms,)
-                    out_atoms.arrays[f'grad_e_{name}_{j}'] = grads[:, j, :]        # (n_atoms,3)
+                out_atoms.arrays[f"e_{name}_{j}"] = energies[:, j]  # (n_atoms,)
+                out_atoms.arrays[f"grad_norm_e_{name}_{j}"] = grad_norms[
+                    :, j
+                ]  # (n_atoms,)
+                out_atoms.arrays[f"grad_e_{name}_{j}"] = grads[:, j, :]  # (n_atoms,3)
 
         write(filename, out_atoms)
 
-
-    def save_ply(self,
-            vertex_colors: Union[Iterable, None] = None,
-            filename: str = f"./quad_sphere_tmp.ply",
-            ):
+    def save_ply(
+        self,
+        vertex_colors: Union[Iterable, None] = None,
+        filename: str = f"./quad_sphere_tmp.ply",
+    ):
         """
-        Function saves mesh data to ply file using Manifold class data. 
+        Function saves mesh data to ply file using Manifold class data.
         args:
         vertex_colors - optional list of RGB values
         filename - save file
         """
-        print(f'Saving grid to file: {filename}')
+        print(f"Saving grid to file: {filename}")
         save_ply_quads(
             filename,
-            vertices = self.grid,
-            faces = self.faces,
-            normals = self.normals,
-            vertex_colors = vertex_colors
-            )
+            vertices=self.grid,
+            faces=self.faces,
+            normals=self.normals,
+            vertex_colors=vertex_colors,
+        )
 
     def make_fragment_population(
-            self,
-            population_size: int,
-            fragment: Fragment,
-            radius: Union[float, None] = None,
-            decay: Union[float, None] = None,
-            coverage:  Annotated[float, "in [0,1]"] = 0.8,
-            anticipated_bond_len = 2.
-            ):
+        self,
+        population_size: int,
+        fragment: Fragment,
+        radius: Union[float, None] = None,
+        decay: Union[float, None] = None,
+        coverage: Annotated[float, "in [0,1]"] = 0.8,
+        anticipated_bond_len=2.0,
+    ):
         """
-            Generates a population of molecular structures by attaching a given fragment to non-interacting sites on a surface.
-            Args:
-                population_size (int): Number of structures to generate in the population.
-                fragment (Fragment): The molecular fragment to attach to the surface.
-                radius (float, optional): Interaction radius for selecting attachment sites. If None, estimated automatically.
-                decay (float, optional): Decay parameter for site selection. If None, estimated automatically.
-                coverage (float, optional): Fraction of available sites to use for fragment attachment (between 0 and 1). Default is 0.8.
-                anticipated_bond_len (float, optional): Expected bond length between the fragment and the surface. Default is 2.0.
-            Returns:
-                List[np.ndarray]: A list of atom arrays representing the generated population of structures with attached fragments.
-            Notes:
-                - The function randomizes fragment orientation and attachment sites for each structure.
-                - If both `radius` and `decay` are None, they are estimated from the fragment conformers.
-                - The fragment is attached at selected surface sites with randomized rotation.
-            """
-        
-        oriented_conformers = [fragment.get_conformer(i) for i, _  in enumerate(fragment.conformers)]
+        Generates a population of molecular structures by attaching a given fragment to non-interacting sites on a surface.
+        Args:
+            population_size (int): Number of structures to generate in the population.
+            fragment (Fragment): The molecular fragment to attach to the surface.
+            radius (float, optional): Interaction radius for selecting attachment sites. If None, estimated automatically.
+            decay (float, optional): Decay parameter for site selection. If None, estimated automatically.
+            coverage (float, optional): Fraction of available sites to use for fragment attachment (between 0 and 1). Default is 0.8.
+            anticipated_bond_len (float, optional): Expected bond length between the fragment and the surface. Default is 2.0.
+        Returns:
+            List[np.ndarray]: A list of atom arrays representing the generated population of structures with attached fragments.
+        Notes:
+            - The function randomizes fragment orientation and attachment sites for each structure.
+            - If both `radius` and `decay` are None, they are estimated from the fragment conformers.
+            - The fragment is attached at selected surface sites with randomized rotation.
+        """
+
+        oriented_conformers = [
+            fragment.get_conformer(i) for i, _ in enumerate(fragment.conformers)
+        ]
 
         if radius is None and decay is None:
-            radius, decay = estimate_radius_decay(
-                oriented_conformers
-                )
-        
+            radius, decay = estimate_radius_decay(oriented_conformers)
+
         surf_population = []
 
         for _ in range(population_size):
-
-            inds = self.get_non_interacting_vertices(radius=radius, decay=decay, randomize=True)
-            inds = inds[:int(len(inds)*coverage)]
+            inds = self.get_non_interacting_vertices(
+                radius=radius, decay=decay, randomize=True
+            )
+            inds = inds[: int(len(inds) * coverage)]
 
             if len(fragment.conformers) < len(inds):
-                conformers_prepped = (oriented_conformers * (len(inds) // len(oriented_conformers) + 1))[:len(inds)]
+                conformers_prepped = (
+                    oriented_conformers * (len(inds) // len(oriented_conformers) + 1)
+                )[: len(inds)]
             else:
                 conformers_prepped = oriented_conformers
-        
+
             rotations = [random.uniform(0, 360) for _ in inds]
             random.shuffle(conformers_prepped)
             random.shuffle(inds)
             atoms = self.atoms.copy()
-            
-            if 'fragments' not in atoms.arrays.keys():
-                atoms.arrays['fragments'] = np.array([0 for _ in atoms])
+
+            if "fragments" not in atoms.arrays.keys():
+                atoms.arrays["fragments"] = np.array([0 for _ in atoms])
 
             for i, (rot, ind) in enumerate(zip(rotations, inds)):
-
-                frg = conformers_prepped[i] 
-                frg.arrays['fragments'] = np.array([np.max(atoms.arrays['fragments'])+1 for _ in frg])
+                frg = conformers_prepped[i]
+                frg.arrays["fragments"] = np.array(
+                    [np.max(atoms.arrays["fragments"]) + 1 for _ in frg]
+                )
 
                 atoms = attach_fragment(
                     atoms=atoms,
                     site_dict={
-                        'coordinates': self.grid[ind],
-                        'n_vector': self.normals[ind]
+                        "coordinates": self.grid[ind],
+                        "n_vector": self.normals[ind],
                     },
                     fragment=frg,
                     n_rotation=rot,
-                    height = anticipated_bond_len - self.touch_sphere_size,
+                    height=anticipated_bond_len - self.touch_sphere_size,
                 )
-                
-            atoms.info['n_fragments'] = np.max(atoms.arrays['fragments'])
+
+            atoms.info["n_fragments"] = np.max(atoms.arrays["fragments"])
             surf_population.append(atoms)
-        
+
         self.surf_population = surf_population
-            
+
     def evaluate_surf_population(self):
         """
         Evaluates the energy of atoms in the surface population and sorts them by energy.
@@ -464,15 +490,17 @@ class Manifold(Surface):
         """
 
         if self.surf_population is None:
-            raise ValueError(f'Surface population is not generated: {self.surf_population = }.\n \
-                             To create surface population use: Manifold.make_fragment_population()')
-        
+            raise ValueError(
+                f"Surface population is not generated: {self.surf_population = }.\n \
+                             To create surface population use: Manifold.make_fragment_population()"
+            )
+
         # self.surf_population = evaluate_and_sort_atoms_by_energy(self.surf_population, self.calc)
 
-        dyn = StaticEval(self.calc)
+        dyn = StaticEval(self.calc, use_torch_sim=self.use_torch_sim)
         dyn.run(self.surf_population)
 
-        
+
 def _serialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """
     Serializes complex data types in a metadata dictionary to JSON strings.
@@ -500,6 +528,7 @@ def _serialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
             serialized_kvp[key] = value
     return serialized_kvp
 
+
 def _deserialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """
     Deserializes any JSON strings found in a metadata dictionary.
@@ -509,8 +538,9 @@ def _deserialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(value, str):
             try:
                 # Check for common JSON list/dict patterns
-                if (value.startswith('[') and value.endswith(']')) or \
-                   (value.startswith('{') and value.endswith('}')):
+                if (value.startswith("[") and value.endswith("]")) or (
+                    value.startswith("{") and value.endswith("}")
+                ):
                     deserialized_kvp[key] = json.loads(value)
                 else:
                     deserialized_kvp[key] = value
@@ -520,10 +550,11 @@ def _deserialize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
             deserialized_kvp[key] = value
     return deserialized_kvp
 
+
 def db_to_traj(
     db_path: str,
     output_traj_path: Optional[str] = None,
-    selection_query: Optional[str] = None
+    selection_query: Optional[str] = None,
 ) -> List[Atoms]:
     """
     Reads structures from an ASE database and explicitly reconstructs them
@@ -562,34 +593,37 @@ def db_to_traj(
                 positions=row.positions,
                 cell=row.cell,
                 pbc=row.pbc,
-                info=deserialized_info
+                info=deserialized_info,
             )
-            
+
             # --- Step 3: Attach all custom per-atom arrays ---
             # The custom arrays are stored in the `row.data` dictionary.
             if row.data:
                 for name, array in row.data.items():
                     # Use the .new_array() method to attach each array.
                     atoms.new_array(name, array)
-            
+
             # --- Step 4: Add the fully reconstructed object to our list ---
             atoms_list.append(atoms)
-            
+
     print(f"Successfully reconstructed {len(atoms_list)} structures from the database.")
 
     # Optionally, write the list to a .traj file
     if output_traj_path:
-        print(f"Writing {len(atoms_list)} structures to trajectory file: {output_traj_path}")
-        with Trajectory(output_traj_path, 'w') as traj:
+        print(
+            f"Writing {len(atoms_list)} structures to trajectory file: {output_traj_path}"
+        )
+        with Trajectory(output_traj_path, "w") as traj:
             for atoms in atoms_list:
                 traj.write(atoms)
-    
+
     return atoms_list
+
 
 def db_to_traj_explicit(
     db_path: str,
     output_traj_path: Optional[str] = None,
-    selection_query: Optional[str] = None
+    selection_query: Optional[str] = None,
 ) -> List[Atoms]:
     """
     Explicitly reconstructs Atoms objects from a database, skipping corrupted rows.
@@ -611,7 +645,7 @@ def db_to_traj_explicit(
                 positions = row.positions
                 cell = row.cell
                 pbc = row.pbc
-                
+
                 # The .data attribute for custom arrays is also usually safe.
                 custom_arrays = row.data
                 # ----------------------------------------------------
@@ -623,24 +657,28 @@ def db_to_traj_explicit(
                     positions=positions,
                     cell=cell,
                     pbc=pbc,
-                    info=deserialized_info
+                    info=deserialized_info,
                 )
                 if custom_arrays:
                     for name, array in custom_arrays.items():
                         atoms.new_array(name, array)
-                
+
                 atoms_list.append(atoms)
 
             except ValueError as e:
                 # --- Gracefully handle the error ---
-                print(f"\n[WARNING] Skipping row with ID={row.id} due to a reconstruction error.")
+                print(
+                    f"\n[WARNING] Skipping row with ID={row.id} due to a reconstruction error."
+                )
                 print(f"  > Error Type: ValueError")
                 print(f"  > Error Message: {e}")
-                print(f"  > This often indicates a corrupted or incompatible array in the database.\n")
-                continue # Move to the next row
-            
+                print(
+                    f"  > This often indicates a corrupted or incompatible array in the database.\n"
+                )
+                continue  # Move to the next row
+
     print(f"Successfully reconstructed {len(atoms_list)} structures from the database.")
 
     # ... (writing to .traj file logic is the same) ...
-    
+
     return atoms_list

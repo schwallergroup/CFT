@@ -10,11 +10,28 @@ from autoadsorbate import Fragment
 from itertools import product
 from typing import Union, Literal, List
 import copy
+import torch
+try:
+    import torch_sim as ts
+    from torch_sim.autobatching import BinningAutoBatcher
+    from torch_sim.models.mace import MaceModel
+except ImportError:
+    print("torch-sim-atomistic not installed, defaulting to sequential optimization")
+from multiprocessing import Pool
+from functools import partial
+from itertools import product
+from tqdm import tqdm
+
 
 class ProbeScan:
-    def __init__(self, ref_atoms,
-                 probe, vertices, normals=None,
-                 ):
+    def __init__(
+        self,
+        ref_atoms,
+        probe: Union[Atoms, Fragment],
+        vertices,
+        normals=None,
+        use_torch_sim=False,
+    ):
         """
         Evaluate energies of a probe atom placed at multiple coordinates
         near a reference structure.
@@ -23,19 +40,20 @@ class ProbeScan:
         ----------
         ref_atoms : ase.Atoms
             Reference system (must have calculator attached).
-        probe_atom : ase.Atoms
+        probe : Union[Atoms, Fragment]
             Single-atom Atoms object (the probe).
         coordinates : list of [x, y, z]
             Positions to place the probe atom.
         """
         if normals is not None:
             if not len(vertices) == len(normals):
-                raise ValueError(f'{len(vertices) == len(normals) = }. Must be true.')
+                raise ValueError(f"{len(vertices) == len(normals) = }. Must be true.")
 
         self.ref_atoms = ref_atoms
         self.probe = probe
         self.coordinates = np.array(vertices)
         self.normals = normals
+        self.use_torch_sim = use_torch_sim
         # self.mode = mode
 
         # if probe_atom.get_global_number_of_atoms() != 1:
@@ -44,8 +62,58 @@ class ProbeScan:
         if self.ref_atoms.calc is None:
             raise ValueError("ref_atoms must have a calculator attached.")
 
+    def run_sequential(self):
+        """
+        Run the probe scan in a sequential manner.
 
-    def run(self):
+        Returns
+        -------
+        energies : np.ndarray
+            Array of shape (len(coordinates), len(probe.conformers))
+            Interaction energies for each probe position and conformer.
+        """
+
+        if isinstance(self.probe, Atoms):
+            # Single conformer → treat as 1-column array
+            energies = np.zeros((len(self.coordinates), 1))
+            iterator = enumerate(
+                tqdm(self.coordinates, desc="Scanning probe positions")
+            )
+            for i, pos in iterator:
+                probe = self.probe.copy()
+                probe.set_positions([pos])
+                system = self.ref_atoms + probe
+                system.calc = self.ref_atoms.calc
+                energies[i, 0] = system.get_potential_energy()
+
+        elif isinstance(self.probe, Fragment):
+            n_confs = len(self.probe.conformers)
+            energies = np.zeros((len(self.coordinates), n_confs))
+            conformers = [self.probe.get_conformer(j) for j in range(n_confs)]
+            iterator = enumerate(
+                tqdm(
+                    list(product(range(len(self.coordinates)), range(n_confs))),
+                    desc="Scanning probe positions",
+                )
+            )
+            for idx, (i_coord, j_conf) in iterator:
+                pos = self.coordinates[i_coord]
+                probe = conformers[j_conf]
+
+                en = get_static_energy(
+                    atoms=self.ref_atoms.copy(),
+                    pos=pos,
+                    probe=probe,
+                    normal=self.normals[i_coord],
+                    n_rotation=0,
+                    height=0,
+                    calc=self.ref_atoms.calc,
+                )
+                energies[i_coord, j_conf] = en
+
+        return energies
+
+    def run_torch_sim(self):
         """
         Run the probe scan.
 
@@ -58,55 +126,94 @@ class ProbeScan:
 
         if isinstance(self.probe, Atoms):
             # Single conformer → treat as 1-column array
-            energies = np.zeros((len(self.coordinates), 1))
-            iterator = enumerate(tqdm(self.coordinates, desc="Scanning probe positions"))
+            systems = []
+            iterator = enumerate(
+                tqdm(self.coordinates, desc="Scanning probe positions")
+            )
             for i, pos in iterator:
                 probe = self.probe.copy()
                 probe.set_positions([pos])
                 system = self.ref_atoms + probe
-                system.calc = self.ref_atoms.calc
-                energies[i, 0] = system.get_potential_energy()
+                systems.append(system)
+
+            all_energies = get_batched_single_point(systems)
 
         elif isinstance(self.probe, Fragment):
             n_confs = len(self.probe.conformers)
-            energies = np.zeros((len(self.coordinates), n_confs))
             conformers = [self.probe.get_conformer(j) for j in range(n_confs)]
-            iterator = enumerate(tqdm(list(product(range(len(self.coordinates)), range(n_confs))),
-                                    desc="Scanning probe positions"))
+            all_energies = np.zeros((len(self.coordinates), n_confs))
+            systems = []
+            indices = []
+            iterator = enumerate(
+                list(product(range(len(self.coordinates)), range(n_confs)))
+            )
             for idx, (i_coord, j_conf) in iterator:
                 pos = self.coordinates[i_coord]
                 probe = conformers[j_conf]
-                
-                en = get_static_energy(
-                    atoms = self.ref_atoms.copy(),
-                    pos = pos,
-                    probe = probe,
-                    normal = self.normals[i_coord],
-                    n_rotation = 0,
-                    height = 0,
-                    calc = self.ref_atoms.calc
-                )
-                energies[i_coord, j_conf] = en
 
-        print(f'{energies.shape = }')
-        return energies
+                system = attach_fragment(
+                    atoms=self.ref_atoms.copy(),
+                    site_dict={"coordinates": pos, "n_vector": self.normals[i_coord]},
+                    fragment=probe,
+                    n_rotation=0,
+                    height=0,
+                )
+                systems.append(system)
+                indices.append((i_coord, j_conf))
+
+            systems[0].calc = copy.deepcopy(self.ref_atoms.calc)
+            indices = np.array(indices)
+
+            energies = get_batched_single_point(systems)
+            for (i, j), energy in zip(indices, energies):
+                all_energies[i, j] = energy
+
+        return all_energies
+
+    def run(self):
+        if self.use_torch_sim:
+            return self.run_torch_sim()
+        else:
+            return self.run_sequential()
+
+
+def get_batched_single_point(systems: list[Atoms]):
+    # Extract the MACE model from the calculator
+    raw_mace_model = systems[0].calc.models[0]
+
+    # Wrap it for TorchSim
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = MaceModel(model=raw_mace_model, device=device)
+
+    energies = np.zeros((len(systems), 1))
+    # now use torch-sim to compute energies in automatic batches
+    final_state = ts.static(
+        system=systems,
+        model=model,
+        pbar=True,
+        autobatcher=BinningAutoBatcher(
+            model=model, memory_scales_with="n_atoms", max_atoms_to_try=20_000
+        ),
+    )
+    # results_atoms = final_state.get_atoms()
+    for i, atoms in enumerate(final_state):
+        energies[i, 0] = atoms["potential_energy"]
+
+    return energies
+
 
 def get_static_energy(
-        atoms: Atoms,
-        pos: Union[list, np.array, tuple],
-        probe: Atoms,
-        normal: Union[list, np.array, tuple],
-        n_rotation: float = 0,
-        height=0,
-        calc = None
-        ):
-                
+    atoms: Atoms,
+    pos: Union[list, np.array, tuple],
+    probe: Atoms,
+    normal: Union[list, np.array, tuple],
+    n_rotation: float = 0,
+    height=0,
+    calc=None,
+):
     system = attach_fragment(
         atoms=atoms.copy(),
-        site_dict={
-            'coordinates': pos,
-            'n_vector': normal
-        },
+        site_dict={"coordinates": pos, "n_vector": normal},
         fragment=probe,
         n_rotation=n_rotation,
         height=height,
@@ -116,7 +223,10 @@ def get_static_energy(
     # write('debug_atoms.xyz', system, append=True)
     return system.get_potential_energy()
 
-def evaluate_and_sort_atoms_by_energy(atoms_list: List[Atoms], calculator) -> List[Atoms]:
+
+def evaluate_and_sort_atoms_by_energy(
+    atoms_list: List[Atoms], calculator
+) -> List[Atoms]:
     """
     Compute potential energies for a list of ASE Atoms objects,
     store them in atoms.info['static_energy'], and return a list
@@ -129,15 +239,19 @@ def evaluate_and_sort_atoms_by_energy(atoms_list: List[Atoms], calculator) -> Li
     Returns:
         List[Atoms]: Sorted list of Atoms by potential energy.
     """
+    raise DeprecationWarning("This function is deprecated. Use torch-sim instead.")
     for atoms in tqdm(atoms_list, desc="Calculating energies"):
-        atoms.calc = copy.deepcopy(calculator)         # attach calculator
+        atoms.calc = copy.deepcopy(calculator)  # attach calculator
         energy = atoms.get_potential_energy()  # compute energy
-        atoms.info['static_energy'] = energy
-        atoms.info['static_energy_per_fragment'] = energy  / atoms.info['n_fragments'] # store energy
+        atoms.info["static_energy"] = energy
+        atoms.info["static_energy_per_fragment"] = (
+            energy / atoms.info["n_fragments"]
+        )  # store energy
 
     # Sort by stored energy
-    sorted_list = sorted(atoms_list, key=lambda x: x.info['static_energy_per_fragment'])
+    sorted_list = sorted(atoms_list, key=lambda x: x.info["static_energy_per_fragment"])
     return sorted_list
+
 
 from ase import Atoms
 from collections import defaultdict
@@ -154,48 +268,70 @@ import copy
 
 class StaticEval:
     """Efficiently calculate potential energies by grouping identical compositions."""
-    
-    def __init__(self, calculator):
+
+    def __init__(self, calculator, use_torch_sim=False):
+        self.use_torch_sim = use_torch_sim
         self.clean_calc = copy.deepcopy(calculator)
-        
-    def run(self, atoms_list: List[Atoms]) -> List[Atoms]:
+
+    def run_torch_sim(self, atoms_list: List[Atoms]) -> List[Atoms]:
         """Calculate energies and store in atoms.info['static_energy']."""
         if not atoms_list:
             return atoms_list
-            
+
+        atoms_list[0].calc = copy.deepcopy(self.clean_calc)
+        for atoms in atoms_list:
+            atoms.center(vacuum=1.5)
+            atoms.pbc = False
+
+        energies = get_batched_single_point(atoms_list)
+        for i, atoms in enumerate(atoms_list):
+            atoms.info["static_energy"] = energies[i, 0]
+        return atoms_list
+
+    def run_sequential(self, atoms_list: List[Atoms]) -> List[Atoms]:
+        """Calculate energies and store in atoms.info['static_energy']."""
+        if not atoms_list:
+            return atoms_list
+
         groups = self._group_atoms(atoms_list)
-        
+
         with tqdm(total=len(atoms_list), desc="Calculating energies") as pbar:
             for indices, template_atoms in groups.values():
                 template_atoms.calc = copy.deepcopy(self.clean_calc)
-                
+
                 for idx in indices:
                     atoms = atoms_list[idx]
                     template_atoms.set_positions(atoms.get_positions())
                     template_atoms.set_cell(atoms.get_cell())
-                    
+
                     # try:
                     energy = template_atoms.get_potential_energy()
-                    atoms.info['static_energy'] = energy
+                    atoms.info["static_energy"] = energy
                     # except:
                     #     atoms.info['static_energy'] = None
-                    
+
                     pbar.update(1)
-                        
+
         return atoms_list
-    
+
+    def run(self, atoms_list: List[Atoms]) -> List[Atoms]:
+        if self.use_torch_sim:
+            return self.run_torch_sim(atoms_list)
+        else:
+            return self.run_sequential(atoms_list)
+
     def _group_atoms(self, atoms_list: List[Atoms]) -> dict:
         """Group atoms by composition and ordering."""
         groups = defaultdict(list)
-        
+
         for i, atoms in enumerate(atoms_list):
             key = (len(atoms), tuple(atoms.get_chemical_symbols()))
             groups[key].append(i)
-        
-        return {key: (indices, atoms_list[indices[0]].copy()) 
-                for key, indices in groups.items()}
 
-
+        return {
+            key: (indices, atoms_list[indices[0]].copy())
+            for key, indices in groups.items()
+        }
 
 
 # class ProbeLineOpt:
