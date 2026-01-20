@@ -339,7 +339,6 @@ class Manifold(Surface):
             view(view_atoms)
             for slide in np.arange(0, 2, 0.2):
                 view_atoms += Atoms([marker], [v + slide * self.normals[i]])
-        view(view_atoms)
 
     def write_grid(self, filename: str = "tmp.xyz", inclde_atoms=False):
         """
