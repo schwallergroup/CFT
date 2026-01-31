@@ -67,15 +67,27 @@ class Manifold(Surface):
         *args,
         calc: calculator = None,
         viz_marker="X",
-        wrap_on: Literal["atoms", "sites"] = "sites",
+        wrap_on: Literal["atoms", "sites", "blend"] = "sites",
         use_torch_sim: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
+        grid_atoms = self.grid.copy()
         self.wrap_on = wrap_on
-        if self.wrap_on == 'sites':
+        if self.wrap_on in ['sites', 'blend']:
             self.grid, self.faces, _ = self._shrinkwrap(self.sites_atoms)
+            grid_sites = self.grid.copy()
+
+            if self.wrap_on == 'blend':
+                d_grid = grid_sites - grid_atoms
+                d_grid_norm = np.linalg.norm(d_grid, axis=1)
+                d_grid_norm /= np.max(d_grid_norm)
+
+                d_grid_norm = .5 / (1 + np.exp(-(d_grid_norm)))
+
+                # self.grid = grid_atoms + (d_grid) * .5 # blend_factor
+                self.grid = grid_atoms + (d_grid) * d_grid_norm.reshape(-1, 1) # blend_factor
             
         self.faces = reorient_faces_from_seed(np.array(self.faces), self.grid)
         self.normals = compute_outward_vertex_normals_quads(self.grid, self.faces, mode=self.mode)
