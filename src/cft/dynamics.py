@@ -31,6 +31,7 @@ class ProbeScan:
         vertices,
         normals=None,
         use_torch_sim=False,
+        n_rotation = 0.
     ):
         """
         Evaluate energies of a probe atom placed at multiple coordinates
@@ -54,6 +55,7 @@ class ProbeScan:
         self.coordinates = np.array(vertices)
         self.normals = normals
         self.use_torch_sim = use_torch_sim
+        self.n_rotation = n_rotation
         # self.mode = mode
 
         # if probe_atom.get_global_number_of_atoms() != 1:
@@ -105,7 +107,7 @@ class ProbeScan:
                     pos=pos,
                     probe=probe,
                     normal=self.normals[i_coord],
-                    n_rotation=0,
+                    n_rotation=self.n_rotation,
                     height=0,
                     calc=self.ref_atoms.calc,
                 )

@@ -113,7 +113,7 @@ class Manifold(Surface):
         else:
             raise ValueError(f"{self.mode = }; Unknown error.")
 
-    def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
+    def run_probe_scan(self, probes: List[Union[Fragment, Atoms]], n_rotation=0.):
         """
         Scans a set of probe molecules or atoms over a predefined grid on the reference structure,
         computes energies and gradients for each probe position, and stores the results.
@@ -158,6 +158,7 @@ class Manifold(Surface):
                 vertices=self.grid,
                 normals=self.normals,
                 use_torch_sim=self.use_torch_sim,
+                n_rotation = n_rotation
             )
             energies = dyn.run()
 
@@ -170,7 +171,7 @@ class Manifold(Surface):
             grads, grad_norms = compute_gradients_per_column(
                 energies, self.grid, self.faces
             )
-
+            self.grid_atoms.info['n_rotation'] = n_rotation
             self.grid_atoms.arrays[f"e_{name}"] = energies
             self.grid_atoms.arrays[f"grad_e_{name}"] = grads
             self.grid_atoms.arrays[f"grad_norm_e_{name}"] = grad_norms
