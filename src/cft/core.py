@@ -276,7 +276,8 @@ class Manifold(Surface):
                 n_rotation=0,
                 height=0.0,
             )
-            p_atoms.calc = copy.deepcopy(self.calc)
+            p_atoms = p_atoms[[atom.index for atom in p_atoms if atom.symbol != 'X']]
+            p_atoms.calc = copy.deepcopy(self.calc)     
             ref_dict["e_" + p.smile] = p_atoms.get_potential_energy() + e_ref
         return ref_dict
 
