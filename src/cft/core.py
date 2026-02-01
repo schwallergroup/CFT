@@ -261,6 +261,7 @@ class Manifold(Surface):
         import copy
 
         _atoms = self.atoms.copy()
+        _atoms = _atoms[[atom.index for atom in _atoms if atom.symbol != 'X']]
         _atoms.calc = copy.deepcopy(self.calc)
         e_ref = _atoms.get_potential_energy()
 

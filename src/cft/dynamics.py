@@ -213,8 +213,10 @@ def get_static_energy(
     height=0,
     calc=None,
 ):
+    _atoms = atoms.copy()
+    _atoms = _atoms[[atom.index for atom in _atoms if atom.symbol != 'X']]
     system = attach_fragment(
-        atoms=atoms.copy(),
+        atoms=_atoms,
         site_dict={"coordinates": pos, "n_vector": normal},
         fragment=probe,
         n_rotation=n_rotation,
