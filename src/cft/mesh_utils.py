@@ -2,11 +2,13 @@ import numpy as np
 import networkx as nx
 from matplotlib import cm
 from typing import List, Sequence, Literal
-# from scipy.sparse import csr_matrix
 from collections import defaultdict
 from collections import defaultdict
 from plyfile import PlyData, PlyElement
 from random import shuffle
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 def face_normal(verts, face):
     """Compute normal of quad face (area-weighted sum of 2 triangle normals)."""
@@ -806,3 +808,92 @@ def generate_plane_mesh(images, resolution=0.1, gutter=2.0):
 
     return verts, edges, faces, normals
 
+
+def get_mesh_islands(points, faces, selected_indices):
+    """
+    Extract disconnected islands from a mesh subset.
+    
+    Parameters:
+    -----------
+    points : np.ndarray, shape (N, 3)
+        Vertex positions
+    faces : np.ndarray, shape (M, 4)
+        Quad faces as vertex indices
+    selected_indices : np.ndarray
+        Indices of vertices to keep
+    
+    Returns:
+    --------
+    islands : list of dict
+        Each dict contains {'points': ndarray, 'faces': ndarray, 'original_indices': ndarray}
+    """
+    # Get faces that use only selected vertices
+    selected_set = set(selected_indices)
+    valid_faces = []
+    
+    for face in faces:
+        if all(v in selected_set for v in face):
+            valid_faces.append(face)
+    
+    if len(valid_faces) == 0:
+        return []
+    
+    valid_faces = np.array(valid_faces)
+    
+    # Build adjacency graph (vertices connected by edges)
+    n_points = len(points)
+    edges = []
+    
+    for face in valid_faces:
+        # For quads, edges are: (0,1), (1,2), (2,3), (3,0)
+        for i in range(4):
+            v1, v2 = face[i], face[(i+1) % 4]
+            edges.append([v1, v2])
+            edges.append([v2, v1])  # undirected
+    
+    edges = np.array(edges)
+    
+    # Create sparse adjacency matrix
+    data = np.ones(len(edges), dtype=int)
+    adjacency = csr_matrix((data, (edges[:, 0], edges[:, 1])), 
+                           shape=(n_points, n_points))
+    
+    # Find connected components
+    n_components, labels = connected_components(adjacency, directed=False)
+    
+    # Extract each island
+    islands = []
+    
+    for island_id in range(n_components):
+        # Get vertices in this island
+        island_verts = np.where(labels == island_id)[0]
+        
+        # Filter to only selected vertices
+        island_verts = np.array([v for v in island_verts if v in selected_set])
+        
+        if len(island_verts) == 0:
+            continue
+        
+        # Create mapping from old to new indices
+        old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(island_verts)}
+        
+        # Get faces for this island
+        island_faces = []
+        for face in valid_faces:
+            if all(v in old_to_new for v in face):
+                new_face = [old_to_new[v] for v in face]
+                island_faces.append(new_face)
+        
+        if len(island_faces) == 0:
+            continue
+        
+        island_faces = np.array(island_faces)
+        island_points = points[island_verts]
+        
+        islands.append({
+            'points': island_points,
+            'faces': island_faces,
+            'original_indices': island_verts
+        })
+    
+    return islands
