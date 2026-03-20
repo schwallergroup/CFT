@@ -3,12 +3,13 @@ name = "cft"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "autoadsorbate<=0.2.5",
     "torch~=2.9.1",
     "networkx>=3.5",
     "plyfile>=1.1.2",
+    "scipy>=1.11",
     "tqdm>=4.67.1",
     # "torch-sim-atomistic~=0.5.0",
     "mace-torch~=0.3.14,"
