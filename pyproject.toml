@@ -12,7 +12,8 @@ dependencies = [
     "scipy>=1.11",
     "tqdm>=4.67.1",
     # "torch-sim-atomistic~=0.5.0",
-    "mace-torch~=0.3.14"
+    "mace-torch~=0.3.14",
+    "seaborn>=0.13.2",
 ]
 
 [build-system]
