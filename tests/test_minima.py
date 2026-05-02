@@ -13,17 +13,19 @@ import os
 import numpy as np
 from pathlib import Path
 from ase.io import read
-from cft import Manifold
-from cft.mesh_utils import get_manifold_minima
+import pytest
+try:
+    from cft import Manifold
+    from cft.mesh_utils import get_manifold_minima
+except ImportError as e:
+    pytest.skip(f"cft not importable: {e}", allow_module_level=True)
 
 
-def main():
+def test_minima():
+    import pytest
     data_dir = os.environ.get('CFT_DATA_DIR')
     if not data_dir:
-        raise EnvironmentError(
-            "CFT_DATA_DIR is not set. "
-            "Point it to the directory containing the pre-computed manifold files."
-        )
+        pytest.skip("CFT_DATA_DIR not set — skipping (requires pre-computed manifold files)")
     data_dir = Path(data_dir)
 
     particle_path = os.environ.get('CFT_PARTICLE', 'notebooks/test_particle.xyz')
@@ -52,4 +54,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    test_minima()
