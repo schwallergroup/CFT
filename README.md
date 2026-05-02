@@ -77,6 +77,7 @@ unzip cft_paper.zip -d /path/to/data/
 
 export CFT_DATA_DIR=/path/to/data/cft_paper
 export CFT_PARTICLE=$CFT_DATA_DIR/test_particle.xyz
+export CFT_SCRATCH_DIR=./outputs   # output dir for meshes, PLY files, figures
 ```
 
 ### 4. Verify the installation
@@ -96,6 +97,23 @@ With `CFT_DATA_DIR` set (full suite):
 ```
 6 passed
 ```
+
+---
+
+## 📓 Notebook
+
+[`notebooks/cft.ipynb`](notebooks/cft.ipynb) is the primary reference for reproducing all paper figures and exploring the full CFT workflow. It covers:
+
+- Manifold fitting and visualisation
+- Probe fragment setup (*SMILES)
+- Continuous field scans and energy maps
+- NEB energy decomposition on the manifold
+- Linear scaling relations (LSR) and LSR-breaking maps
+- Descriptor maps across Cu / Pd / Au / HEO surfaces
+- Point of Maximal Deviation (PMD) and anisotropy estimates
+- BEP benchmark
+
+Set `CFT_DATA_DIR`, `MODEL_PATH`, and `CFT_SCRATCH_DIR` (see step 3 above), then run the notebook top-to-bottom. Each section is self-contained.
 
 ---
 
@@ -139,7 +157,7 @@ CFT follows a modular design for extensibility:
 *   **`core.py`**: The `Manifold` class. Extends `autoadsorbate.Surface` to handle grid generation and global field operations.
 *   **`dynamics.py`**: Logic for `ProbeScan` (moving fragments across the manifold) and `StaticEval`.
 *   **`mesh_utils.py`**: High-performance geometric routines for face orientation, gradient estimation, and PLY I/O.
-*   **`examples/`**: Scripts demonstrating CO NEB calculations, Cu nanoparticle fragmentation, Rh28 ligand screening, organocatalyst field mapping, and phosphine ligand screening on metal clusters.
+*   **`examples/CO_neb/`**: End-to-end NEB calculation with CFT probe scanning on the NEB plane mesh.
 
 ---
 
