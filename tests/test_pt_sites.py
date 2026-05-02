@@ -8,33 +8,26 @@ Requires env vars:
 
   CFT_PARTICLE  - path to the particle .xyz file
                    (default: notebooks/test_particle.xyz relative to repo root)
+
+The Manifold is constructed once per session via the `shared_manifold` fixture
+defined in conftest.py.
 """
 import os
+
 import numpy as np
-from pathlib import Path
 from ase.io import read
-import pytest
-try:
-    from cft import Manifold
-    from cft.mesh_utils import get_manifold_minima
-except ImportError as e:
-    pytest.skip(f"cft not importable: {e}", allow_module_level=True)
+
+from cft.mesh_utils import get_manifold_minima
 
 
-def test_pt_sites():
-    import pytest
-    data_dir = os.environ.get('CFT_DATA_DIR')
-    if not data_dir:
-        pytest.skip("CFT_DATA_DIR not set — skipping (requires pre-computed field files)")
-    data_dir = Path(data_dir)
+def test_pt_sites(shared_manifold):
+    m, data_dir = shared_manifold
 
     particle_path = os.environ.get('CFT_PARTICLE', 'notebooks/test_particle.xyz')
     particle = read(particle_path)
 
     pt_indices = [atom.index for atom in particle if atom.symbol == 'Pt']
     print(f"Pt atom indices in particle: {pt_indices}")
-
-    m = Manifold(particle.copy(), mode='particle', precision=0.2, touch_sphere_size=2.0, wrap_on='blend')
 
     dists = np.linalg.norm(m.grid[:, np.newaxis, :] - particle.positions[np.newaxis, :, :], axis=2)
     closest_atoms = np.argmin(dists, axis=1)
@@ -64,4 +57,5 @@ def test_pt_sites():
 
 
 if __name__ == '__main__':
-    test_pt_sites()
+    import pytest
+    pytest.main([__file__, '-v', '-s'])

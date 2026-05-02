@@ -7,31 +7,20 @@ Requires env vars:
                     manifold_O_WRAPONblend_PREC0.2_TSS2.0.xyz
 
   CFT_PARTICLE  - path to the particle .xyz file
-                  (default: notebooks/test_particle.xyz relative to repo root)
+                   (default: notebooks/test_particle.xyz relative to repo root)
+
+The Manifold is constructed once per session via the `shared_manifold` fixture
+defined in conftest.py.
 """
-import os
 import numpy as np
-from pathlib import Path
 from ase.io import read
-import pytest
-try:
-    from cft import Manifold
-    from cft.mesh_utils import get_manifold_minima
-except ImportError as e:
-    pytest.skip(f"cft not importable: {e}", allow_module_level=True)
+from scipy.spatial import KDTree
+
+from cft.mesh_utils import get_manifold_minima
 
 
-def test_minima():
-    import pytest
-    data_dir = os.environ.get('CFT_DATA_DIR')
-    if not data_dir:
-        pytest.skip("CFT_DATA_DIR not set — skipping (requires pre-computed manifold files)")
-    data_dir = Path(data_dir)
-
-    particle_path = os.environ.get('CFT_PARTICLE', 'notebooks/test_particle.xyz')
-    particle = read(particle_path)
-
-    m = Manifold(particle.copy(), mode='particle', precision=0.2, touch_sphere_size=2.0, wrap_on='blend')
+def test_minima(shared_manifold):
+    m, data_dir = shared_manifold
 
     mesh_ref = read(data_dir / 'manifold_O_WRAPONblend_PREC0.2_TSS2.0.xyz')
     vals_O_raw = mesh_ref.arrays['e_ClO_0']
@@ -44,7 +33,6 @@ def test_minima():
     min1 = get_manifold_minima(m.faces, vals=vals_O_raw)
     print(f"Raw minima count: {len(min1)}")
 
-    from scipy.spatial import KDTree
     kdtree = KDTree(mesh_ref.positions)
     _, old_indices = kdtree.query(m.grid)
     vals_O_kdtree = vals_O_raw[old_indices]
@@ -54,4 +42,5 @@ def test_minima():
 
 
 if __name__ == '__main__':
-    test_minima()
+    import pytest
+    pytest.main([__file__, '-v', '-s'])
