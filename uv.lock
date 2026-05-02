@@ -18,16 +18,16 @@ wheels = [
 
 [[package]]
 name = "autoadsorbate"
-version = "0.2.4"
+version = "0.2.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ase" },
     { name = "pandas" },
     { name = "rdkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/fb/25f0ab6a83b0d43d51f81e7b7c20bf719bad73d1cab86f1b8988c10797b4/autoadsorbate-0.2.4.tar.gz", hash = "sha256:74842d64777b82f7ec9e8a4d9868ca72a4cd8cc7f19058af76725eff9df4cbee", size = 66856, upload-time = "2025-09-22T16:10:40.057Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/0a/9f9f3585343b476692367977a1d81192879830a97a3994117a6b935519bd/autoadsorbate-0.2.5.tar.gz", hash = "sha256:17a043fa0d6492fad362bfd60790eea871b6d53ed2f2b53ee0c57539b2a13f74", size = 68895, upload-time = "2026-01-15T17:42:35.949Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/5d/111f54f7f58a93998eeba8db3a0a9256b830db8bfaf24f20b3feef432e3c/autoadsorbate-0.2.4-py3-none-any.whl", hash = "sha256:a05d396529c7b48dc05e3fc56b74f81845c9b103dfef8cf2c0f639654a7fcaa4", size = 65608, upload-time = "2025-09-22T16:10:38.759Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/1b/8cda582155de1ed265c398172cf8b0e6ad45b8f53833ea6150d06415ca28/autoadsorbate-0.2.5-py3-none-any.whl", hash = "sha256:7123da50df4068af68c8044d2adfdb414882d93629c5ccd687145e4b54f32e2d", size = 67478, upload-time = "2026-01-15T17:42:32.708Z" },
 ]
 
 [[package]]
@@ -52,7 +52,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "autoadsorbate", specifier = "<=0.2.5" },
+    { name = "autoadsorbate", specifier = ">=0.2.5" },
     { name = "mace-torch", specifier = "~=0.3.14" },
     { name = "networkx", specifier = ">=3.5" },
     { name = "plyfile", specifier = ">=1.1.2" },

@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "autoadsorbate<=0.2.5",
+    "autoadsorbate>=0.2.5",
     "torch~=2.9.1",
     "networkx>=3.5",
     "plyfile>=1.1.2",
