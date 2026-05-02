@@ -1,3 +1,12 @@
+"""Core CFT objects: Manifold, PotentialEnergyManifold, and helpers.
+
+The :class:`Manifold` class is the primary user-facing entry point.  Given an
+:class:`ase.Atoms` object and a calculator it builds a quad-mesh over the
+accessible surface, places probe fragments on every grid vertex, evaluates
+interaction energies, and exposes the resulting scalar fields for analysis and
+export.
+"""
+
 import numpy as np
 from ase import Atoms
 from typing import Literal, Union, Iterable, List, Annotated, Dict, Any, Optional

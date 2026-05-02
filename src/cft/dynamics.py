@@ -1,3 +1,11 @@
+"""Dynamics drivers for CFT probe scans and static evaluations.
+
+:class:`ProbeScan` orchestrates sequential or batched (torch-sim) probe
+placement and energy evaluation over a CFT grid.  :class:`StaticEval`
+provides a lightweight wrapper for single-point energy evaluation with optional
+geometry relaxation.
+"""
+
 from ase.io import read, write
 from ase import Atoms
 from ase.constraints import FixedLine, FixAtoms

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![ASE](https://img.shields.io/badge/integration-ASE-green.svg)](https://wiki.fysik.dtu.dk/ase/)
 
-**This repository contains the code for the paper: [On the Covalent Fields of Molecule–Surface Interactions]**
+**This repository contains the code for the paper: [On the Covalent Fields of Molecule–Surface Interactions](https://github.com/schwallergroup/CFT)**
 
 **CFT (Covalent Field Theory)** is a representation theory and Python framework designed to move heterogeneous catalysis and surface science beyond the "static-site" paradigm. It provides the computational tools to recast chemical affinity as a continuous, spatially-resolved field across reactive interfaces.
 
@@ -96,7 +96,7 @@ CFT follows a modular design for extensibility:
 *   **`core.py`**: The `Manifold` class. Extends `autoadsorbate.Surface` to handle grid generation and global field operations.
 *   **`dynamics.py`**: Logic for `ProbeScan` (moving fragments across the manifold) and `StaticEval`.
 *   **`mesh_utils.py`**: High-performance geometric routines for face orientation, gradient estimation, and PLY I/O.
-*   **`examples/`**: Notebooks demonstrating Alatomic Layer Deposition (ALD) on TiN, nanoparticle fragmentation, and scaling relationship analysis.
+*   **`examples/`**: Scripts demonstrating CO NEB calculations, Cu nanoparticle fragmentation, Rh28 ligand screening, organocatalyst field mapping, and phosphine ligand screening on metal clusters.
 
 ---
 
@@ -112,4 +112,12 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 If you use CFT in your research, please cite our paper:
 
-> Fako, E., & Schwaller, P. (2025). On the Covalent Fields of Molecule–Surface Interactions.
+```bibtex
+@unpublished{fako2025cft,
+  author  = {Fako, Edvin and Schwaller, Philippe},
+  title   = {On the Covalent Fields of 
+             Molecule--Surface Interactions},
+  year    = {2025},
+  note    = {Manuscript submitted for publication},
+}
+```

@@ -1,3 +1,10 @@
+"""Mesh construction and analysis utilities for CFT quad-grids.
+
+Provides functions for building outward-oriented quad meshes over atomic
+structures, computing vertex normals and gradients, selecting non-interacting
+probe sites, and exporting meshes to PLY format for visualisation.
+"""
+
 import numpy as np
 import networkx as nx
 from matplotlib import cm
