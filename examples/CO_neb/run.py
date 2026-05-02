@@ -1,43 +1,29 @@
-from autoadsorbate import Surface
-from ase.io import read, write
-from ase.visualize import view
-import numpy as np
-from ase import Atoms
+import copy
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
-from matplotlib.patches import Rectangle
-from matplotlib.ticker import FixedLocator
 
-from cft import Manifold
-from autoadsorbate.Particle import get_cube_surface_pts, grid_round_cube
-from cft.mesh_utils import compute_outward_vertex_normals_quads
-
+from ase import Atoms
 from ase.io import read, write
-from ase.visualize import view
 from ase.optimize import BFGS
 from ase.io import Trajectory
+from ase.neb import NEB, NEBTools
+from ase.constraints import FixAtoms, FixedPlane, FixCartesian
 
 from autoadsorbate import Fragment
 from autoadsorbate.Surf import attach_fragment
-from ase.constraints import FixAtoms, FixedPlane, FixCartesian
-import copy
-from cft.mesh_utils import values_to_colors
-
-from ase.neb import NEB
-import copy
-from ase.neb import NEBTools
-import matplotlib.pyplot as plt
-from utils import *
 
 from mace.calculators import mace_mp
-clean_calc = mace_mp(model=
-                "mace-mh-nl-pbe.model",
-                head='matpes_r2scan',
-                device='cuda',
-                )
+
+from cft import Manifold
+from cft.mesh_utils import values_to_colors, generate_plane_mesh
+
+clean_calc = mace_mp(
+    model="mace-mh-nl-pbe.model",
+    head='matpes_r2scan',
+    device='cuda',
+)
+
 
 def main():
 
@@ -49,7 +35,7 @@ def main():
         initial = endpoint_trj[0].copy()
         final = endpoint_trj[1].copy()
 
-        n_images = 11  
+        n_images = 11
         images = [initial]
         for i in range(n_images - 2):
             image = initial.copy()
@@ -91,28 +77,30 @@ def main():
     pop_keys = [k for k in m_neb.grid_atoms.arrays.keys() if 'grad' in k]
 
     for k in pop_keys:
-        m_neb.grid_atoms.arrays.pop(k)    
+        m_neb.grid_atoms.arrays.pop(k)
 
     write(f'image_{image_i}_{exclude_spec}_grid.xyz', m_neb.grid_atoms)
 
+
+_all_images = read('./neb_CO_in_plane.xyz', index=':')
+endpoint_trj = [_all_images[0], _all_images[-1]]  # IS and FS for a fresh NEB run
 
 images_restart = read('./neb_CO_in_plane.xyz', index=':')
 images_restart = images_restart[-11:]
 image_i = 0
 
-
 exclude_spec = ['O', 'C']
 f = Fragment('Cl[O]', to_initialize=1)
 
-#f = Fragment('Cl[C]', to_initialize=1)
-#exclude_spec = ['O']
+# f = Fragment('Cl[C]', to_initialize=1)
+# exclude_spec = ['O']
 
-#f = Fragment('Cl[O]', to_initialize=1)
-#exclude_spec = ['C']
+# f = Fragment('Cl[O]', to_initialize=1)
+# exclude_spec = ['C']
 
 restart = True
 
 if __name__ == '__main__':
     main()
-    #for image_i, _ in enumerate(images_restart):
-    #    main()
+    # for image_i, _ in enumerate(images_restart):
+    #     main()
