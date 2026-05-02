@@ -4,17 +4,17 @@ from cft import Manifold
 from cft.mesh_utils import estimate_radius_decay
 from ase import Atoms
 import numpy as np
+import os
 from ase.visualize import view
 import matplotlib.pyplot as plt
 
 # from mace.calculators import mace_mp
-# calc = mace_mp(model=
-#                '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
+# calc = mace_mp(model=os.environ.get('MODEL_PATH', ''),
 #                device='cpu',
 #                head='matpes_r2scan')
 
 atoms = read(
-    '../examples/Cu_smash/run_20250826-072304_2bb6cead_sphere_500-run_20250826-072304_2bb6cead_md.xyz',
+    os.environ.get('CFT_MD_XYZ', '../examples/Cu_smash/naked_particle.xyz'),
     index=10)
 print(f'{len(atoms) = }')
 

@@ -1,12 +1,22 @@
+"""Mesh construction and analysis utilities for CFT quad-grids.
+
+Provides functions for building outward-oriented quad meshes over atomic
+structures, computing vertex normals and gradients, selecting non-interacting
+probe sites, and exporting meshes to PLY format for visualisation.
+"""
+
 import numpy as np
 import networkx as nx
 from matplotlib import cm
 from typing import List, Sequence, Literal
-# from scipy.sparse import csr_matrix
-from collections import defaultdict
 from collections import defaultdict
 from plyfile import PlyData, PlyElement
 from random import shuffle
+from itertools import product as itertools_product
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
+from ase import Atoms
+from ase.constraints import FixAtoms
 
 def face_normal(verts, face):
     """Compute normal of quad face (area-weighted sum of 2 triangle normals)."""
@@ -145,33 +155,6 @@ def compute_outward_vertex_normals_quads(vertices, faces, mode=Literal['particle
         vnormals *= -1
 
     return vnormals
-
-# def save_ply_quads(filename, vertices, faces, normals=None):
-#     """
-#     Save a quad mesh to a .ply file with optional vertex normals.
-#     Faces must be (N, 4) for quads.
-#     """
-#     vertex_data = []
-#     for i in range(len(vertices)):
-#         x, y, z = vertices[i]
-#         if normals is not None:
-#             nx, ny, nz = normals[i]
-#             vertex_data.append((x, y, z, nx, ny, nz))
-#         else:
-#             vertex_data.append((x, y, z))
-
-#     vertex_dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4')]
-#     if normals is not None:
-#         vertex_dtype += [('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4')]
-
-#     vertex_array = np.array(vertex_data, dtype=vertex_dtype)
-
-#     face_array = np.array([(face.tolist(),) for face in faces], dtype=[('vertex_indices', 'i4', (4,))])
-
-#     el_verts = PlyElement.describe(vertex_array, 'vertex')
-#     el_faces = PlyElement.describe(face_array, 'face')
-
-#     PlyData([el_verts, el_faces], text=True).write(filename)
 
 def save_ply_quads(filename, vertices, faces, normals=None, vertex_colors=None):
     """
@@ -806,3 +789,307 @@ def generate_plane_mesh(images, resolution=0.1, gutter=2.0):
 
     return verts, edges, faces, normals
 
+
+def get_mesh_islands(points, faces, selected_indices):
+    """
+    Extract disconnected islands from a mesh subset.
+    
+    Parameters:
+    -----------
+    points : np.ndarray, shape (N, 3)
+        Vertex positions
+    faces : np.ndarray, shape (M, 4)
+        Quad faces as vertex indices
+    selected_indices : np.ndarray
+        Indices of vertices to keep
+    
+    Returns:
+    --------
+    islands : list of dict
+        Each dict contains {'points': ndarray, 'faces': ndarray, 'original_indices': ndarray}
+    """
+    # Get faces that use only selected vertices
+    selected_set = set(selected_indices)
+    valid_faces = []
+    
+    for face in faces:
+        if all(v in selected_set for v in face):
+            valid_faces.append(face)
+    
+    if len(valid_faces) == 0:
+        return []
+    
+    valid_faces = np.array(valid_faces)
+    
+    # Build adjacency graph (vertices connected by edges)
+    n_points = len(points)
+    edges = []
+    
+    for face in valid_faces:
+        # For quads, edges are: (0,1), (1,2), (2,3), (3,0)
+        for i in range(4):
+            v1, v2 = face[i], face[(i+1) % 4]
+            edges.append([v1, v2])
+            edges.append([v2, v1])  # undirected
+    
+    edges = np.array(edges)
+    
+    # Create sparse adjacency matrix
+    data = np.ones(len(edges), dtype=int)
+    adjacency = csr_matrix((data, (edges[:, 0], edges[:, 1])), 
+                           shape=(n_points, n_points))
+    
+    # Find connected components
+    n_components, labels = connected_components(adjacency, directed=False)
+    
+    # Extract each island
+    islands = []
+    
+    for island_id in range(n_components):
+        # Get vertices in this island
+        island_verts = np.where(labels == island_id)[0]
+        
+        # Filter to only selected vertices
+        island_verts = np.array([v for v in island_verts if v in selected_set])
+        
+        if len(island_verts) == 0:
+            continue
+        
+        # Create mapping from old to new indices
+        old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(island_verts)}
+        
+        # Get faces for this island
+        island_faces = []
+        for face in valid_faces:
+            if all(v in old_to_new for v in face):
+                new_face = [old_to_new[v] for v in face]
+                island_faces.append(new_face)
+        
+        if len(island_faces) == 0:
+            continue
+        
+        island_faces = np.array(island_faces)
+        island_points = points[island_verts]
+        
+        islands.append({
+            'points': island_points,
+            'faces': island_faces,
+            'original_indices': island_verts
+        })
+    
+    return islands
+
+from collections import defaultdict
+
+def get_manifold_minima(faces, vals, tol=1e-03):
+    adj = [set() for _ in vals]
+    for f in faces:
+        for i in f:
+            adj[i] |= set(f) - {i}
+
+    return [
+        i for i in range(len(vals))
+        if all(vals[i] < vals[j] - tol for j in adj[i])
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Linear scaling relation utilities
+# ---------------------------------------------------------------------------
+
+def fit_line_and_distances(x, y):
+    """
+    Fit a line y = m*x + b and return the signed perpendicular distance of
+    each point from the fitted line.
+
+    Parameters
+    ----------
+    x, y : array-like
+        Input data arrays.
+
+    Returns
+    -------
+    distances : np.ndarray
+        Signed perpendicular distances from the fitted line.
+        Positive values are above the line, negative below.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    m, b = np.polyfit(x, y, 1)
+    distances = (m * x - y + b) / np.sqrt(m ** 2 + 1)
+    return distances
+
+
+# ---------------------------------------------------------------------------
+# ASE atom-selection utilities
+# ---------------------------------------------------------------------------
+
+def slice_atoms_near_point(atoms: Atoms, point: np.ndarray, d: float) -> Atoms:
+    """
+    Return a subset of *atoms* whose positions lie within distance *d* of *point*.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+    point : array-like, shape (3,)
+    d : float
+        Distance cutoff in Å.
+
+    Returns
+    -------
+    ase.Atoms
+    """
+    positions = atoms.get_positions()
+    distances = np.linalg.norm(positions - np.asarray(point), axis=1)
+    return atoms[distances < d]
+
+
+# ---------------------------------------------------------------------------
+# Geometric projection / rotation utilities
+# ---------------------------------------------------------------------------
+
+def furthest_projected_pairs(p0, normal, points, tol=0.1):
+    """
+    Find pairs of point indices that are furthest apart when projected into
+    the plane orthogonal to *normal* at *p0*.
+
+    Returns
+    -------
+    list of (i, j) index pairs
+    """
+    p0 = np.asarray(p0)
+    n = np.asarray(normal, dtype=float)
+    pts = np.asarray(points)
+
+    n /= np.linalg.norm(n)
+
+    v = pts - p0
+    v_plane = v - np.outer(v @ n, n)
+
+    _, _, vh = np.linalg.svd(v_plane, full_matrices=False)
+    direction = vh[0]
+    proj = v_plane @ direction
+
+    pmin, pmax = proj.min(), proj.max()
+    imin = np.where(np.abs(proj - pmin) < tol)[0]
+    imax = np.where(np.abs(proj - pmax) < tol)[0]
+
+    return list(itertools_product(imin, imax))
+
+
+def points_close_to_rotating_line(p0, normal, points, angles, tol=1e-3):
+    """
+    For a line rotating around *normal* at anchor *p0*, return for each angle
+    the indices of *points* close to the line, split by side (+/-).
+
+    Parameters
+    ----------
+    p0 : array-like, shape (3,)
+    normal : array-like, shape (3,)
+    points : array-like, shape (N, 3)
+    angles : sequence of float
+        Rotation angles in radians.
+    tol : float
+        Distance tolerance.
+
+    Returns
+    -------
+    list of (pos_indices, neg_indices) per angle
+    """
+    p0 = np.asarray(p0)
+    n = np.asarray(normal, dtype=float)
+    pts = np.asarray(points)
+
+    n /= np.linalg.norm(n)
+
+    tmp = np.array([1, 0, 0]) if abs(n[0]) < 0.9 else np.array([0, 1, 0])
+    u = np.cross(n, tmp)
+    u /= np.linalg.norm(u)
+    v = np.cross(n, u)
+
+    results = []
+    for theta in angles:
+        d = np.cos(theta) * u + np.sin(theta) * v
+        d_perp = np.cross(n, d)
+        rel = pts - p0
+        signed_dist = rel @ d_perp
+        close = np.abs(signed_dist) < tol
+        pos = np.where((signed_dist > 0) & close)[0]
+        neg = np.where((signed_dist < 0) & close)[0]
+        results.append((pos, neg))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Mesh curvature
+# ---------------------------------------------------------------------------
+
+def _normalize_vec(v):
+    """Normalize a vector; returns zero vector if norm is near zero."""
+    n = np.linalg.norm(v)
+    return v / n if n > 1e-12 else v
+
+
+def _compute_incident_faces(faces):
+    """Build vertex → incident face list mapping."""
+    inc = defaultdict(list)
+    for fi, f in enumerate(faces):
+        for vert in f:
+            inc[vert].append(fi)
+    return inc
+
+
+def _signed_dihedral_at_vertex(vertices, f1, f2, n1, n2, v):
+    """Signed dihedral angle between two quad faces sharing vertex *v*."""
+    shared = list(set(f1) & set(f2))
+    if len(shared) < 2:
+        return 0.0
+    u = shared[1] if shared[0] == v else shared[0]
+    e = _normalize_vec(vertices[u] - vertices[v])
+    sign_val = np.dot(n1, np.cross(n2, e))
+    dot_val = np.clip(np.dot(n1, n2), -1, 1)
+    return np.arccos(dot_val) * np.sign(sign_val)
+
+
+def curvature_deformed_cube(vertices, faces, normals):
+    """
+    Approximate vertex-level signed curvature on a quad mesh by summing
+    signed dihedral angles around each vertex.
+
+    Parameters
+    ----------
+    vertices : array-like, shape (N, 3)
+    faces : array-like, each face is a sequence of 4 vertex indices
+    normals : array-like, shape (N_faces, 3)
+        Per-face normals.
+
+    Returns
+    -------
+    curvature_signed : np.ndarray, shape (N,)
+        Positive → convex, negative → concave.
+    curvature_magnitude : np.ndarray, shape (N,)
+        Absolute curvature.
+    """
+    vertices = np.array(vertices)
+    inc = _compute_incident_faces(faces)
+
+    curvature_signed = np.zeros(len(vertices))
+    curvature_magnitude = np.zeros(len(vertices))
+
+    for v in range(len(vertices)):
+        fids = inc[v]
+        if len(fids) != 4:
+            continue
+        total = 0.0
+        for i in range(4):
+            total += _signed_dihedral_at_vertex(
+                vertices,
+                faces[fids[i]], faces[fids[(i + 1) % 4]],
+                normals[fids[i]], normals[fids[(i + 1) % 4]],
+                v,
+            )
+        curvature_signed[v] = total
+        curvature_magnitude[v] = abs(total)
+
+    return curvature_signed, curvature_magnitude

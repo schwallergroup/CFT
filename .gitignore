@@ -1,0 +1,58 @@
+# --- build / packaging ---
+build/
+dist/
+*.egg-info/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# --- notebooks ---
+notebooks/*.ipynb
+notebooks/*.pdf
+notebooks/*.png
+notebooks/*.xyz
+
+# --- examples (generated data / runs) ---
+examples/**/bkp/
+examples/**/MD_statistics/
+examples/**/*.xyz
+examples/**/*.db
+examples/**/*.json
+
+# HPC job outputs and logs
+examples/**/slurm-*.out
+examples/**/log.txt
+
+# ASE simulation outputs (results, not inputs)
+examples/**/*.traj
+examples/**/relaxed_*.xyz
+examples/**/grd_top*.xyz
+examples/**/grd_top*_naked.xyz
+
+# keep scripts and input structures
+!examples/**/*.py
+!examples/**/*.sh
+!examples/**/README.md
+
+# --- temp / scratch ---
+tmp.xyz
+*.tmp
+*.bak
+*.swp
+
+# --- data / meshes ---
+*.xyz
+*.ply
+*.db
+
+# --- editor / OS ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Environment ---
+.env

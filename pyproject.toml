@@ -1,18 +1,47 @@
 [project]
 name = "cft"
 version = "0.1.0"
-description = "Add your description here"
+description = "A representation theory and Python framework for Covalent Field Theory"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Edvin Fako", email = "edvinfako@gmail.com" },
+    { name = "Philippe Schwaller" },
+]
+keywords = [
+    "catalysis",
+    "surface science",
+    "covalent field theory",
+    "machine learning",
+    "ASE",
+    "nanoparticles",
+    "manifold",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
-    "autoadsorbate<=0.2.5",
+    "autoadsorbate>=0.2.5",
     "torch~=2.9.1",
     "networkx>=3.5",
     "plyfile>=1.1.2",
+    "scipy>=1.11",
     "tqdm>=4.67.1",
-    # "torch-sim-atomistic~=0.5.0",
-    "mace-torch~=0.3.14,"
+    "mace-torch~=0.3.14",
+    "seaborn>=0.13.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/schwallergroup/CFT"
+Repository = "https://github.com/schwallergroup/CFT"
+"Bug Tracker" = "https://github.com/schwallergroup/CFT/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -23,3 +52,8 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cft"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

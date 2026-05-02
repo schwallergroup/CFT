@@ -3,11 +3,11 @@ from ase.io import read, write
 from cft import Manifold
 from ase import Atoms
 import numpy as np
+import os
 from ase.visualize import view
 
 from mace.calculators import mace_mp
-calc = mace_mp(model=
-               '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
+calc = mace_mp(model=os.environ.get('MODEL_PATH', ''),  # set MODEL_PATH env var to your MACE model file
                device='cpu',
                head='matpes_r2scan')
 

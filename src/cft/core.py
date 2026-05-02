@@ -1,3 +1,12 @@
+"""Core CFT objects: Manifold, PotentialEnergyManifold, and helpers.
+
+The :class:`Manifold` class is the primary user-facing entry point.  Given an
+:class:`ase.Atoms` object and a calculator it builds a quad-mesh over the
+accessible surface, places probe fragments on every grid vertex, evaluates
+interaction energies, and exposes the resulting scalar fields for analysis and
+export.
+"""
+
 import numpy as np
 from ase import Atoms
 from typing import Literal, Union, Iterable, List, Annotated, Dict, Any, Optional
@@ -113,7 +122,7 @@ class Manifold(Surface):
         else:
             raise ValueError(f"{self.mode = }; Unknown error.")
 
-    def run_probe_scan(self, probes: List[Union[Fragment, Atoms]]):
+    def run_probe_scan(self, probes: List[Union[Fragment, Atoms]], n_rotation=0.):
         """
         Scans a set of probe molecules or atoms over a predefined grid on the reference structure,
         computes energies and gradients for each probe position, and stores the results.
@@ -158,6 +167,7 @@ class Manifold(Surface):
                 vertices=self.grid,
                 normals=self.normals,
                 use_torch_sim=self.use_torch_sim,
+                n_rotation = n_rotation
             )
             energies = dyn.run()
 
@@ -170,7 +180,7 @@ class Manifold(Surface):
             grads, grad_norms = compute_gradients_per_column(
                 energies, self.grid, self.faces
             )
-
+            self.grid_atoms.info['n_rotation'] = n_rotation
             self.grid_atoms.arrays[f"e_{name}"] = energies
             self.grid_atoms.arrays[f"grad_e_{name}"] = grads
             self.grid_atoms.arrays[f"grad_norm_e_{name}"] = grad_norms
@@ -260,6 +270,7 @@ class Manifold(Surface):
         import copy
 
         _atoms = self.atoms.copy()
+        _atoms = _atoms[[atom.index for atom in _atoms if atom.symbol != 'X']]
         _atoms.calc = copy.deepcopy(self.calc)
         e_ref = _atoms.get_potential_energy()
 
@@ -274,7 +285,8 @@ class Manifold(Surface):
                 n_rotation=0,
                 height=0.0,
             )
-            p_atoms.calc = copy.deepcopy(self.calc)
+            p_atoms = p_atoms[[atom.index for atom in p_atoms if atom.symbol != 'X']]
+            p_atoms.calc = copy.deepcopy(self.calc)     
             ref_dict["e_" + p.smile] = p_atoms.get_potential_energy() + e_ref
         return ref_dict
 
