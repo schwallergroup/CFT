@@ -16,6 +16,7 @@ from itertools import product as itertools_product
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from ase import Atoms
+from ase.constraints import FixAtoms
 
 def face_normal(verts, face):
     """Compute normal of quad face (area-weighted sum of 2 triangle normals)."""

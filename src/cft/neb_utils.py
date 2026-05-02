@@ -295,6 +295,62 @@ def plot_barrier(ax, E, x=None, k=2, n=200, anchor=0.05):
     ax.set_ylabel("Energy")
 
 
+def construct_trajectory(row, manifold, particle, fragment_pmd):
+    """
+    Build an IS → TS → FS trajectory for a single reaction pathway.
+
+    Constructs three ``ase.Atoms`` objects representing the Initial State (C
+    and O placed at their static basin vertices), Transition State (PMD placed
+    at the anisotropic minimum for the given rotation angle), and Final State
+    (CO placed explicitly at the PMD site with a standard 1.13 Å bond length).
+
+    Parameters
+    ----------
+    row : pandas.Series
+        A row from the reaction-info DataFrame produced by the site-search
+        workflow.  Required keys: ``i_c``, ``i_o``, ``i_pmd``, ``angle``.
+    manifold : cft.Manifold
+        The surface manifold (must have ``.grid`` and ``.normals`` arrays).
+    particle : ase.Atoms
+        The bare particle / surface atoms (no adsorbates).
+    fragment_pmd : ase.Atoms
+        Pre-built PMD fragment conformer (e.g. from
+        ``get_neb_probe(pmd_image).get_conformer(0)``).
+
+    Returns
+    -------
+    list of ase.Atoms
+        ``[state_IS, state_TS, state_FS]``
+    """
+    from ase import Atoms
+    from autoadsorbate.Surf import attach_fragment
+
+    # IS: C and O placed at their static basin vertices
+    state_IS = particle.copy()
+    c_idx, o_idx = int(row['i_c']), int(row['i_o'])
+    state_IS += Atoms("C", positions=[manifold.grid[c_idx]])
+    state_IS += Atoms("O", positions=[manifold.grid[o_idx]])
+
+    # TS: PMD placed dynamically at the anisotropic minimum for this angle
+    state_TS = particle.copy()
+    pmd_idx = int(row['i_pmd'])
+    site_dict_ts = {
+        "coordinates": manifold.grid[pmd_idx],
+        "n_vector": manifold.normals[pmd_idx],
+    }
+    attach_fragment(state_TS, site_dict_ts, fragment=fragment_pmd,
+                    n_rotation=row['angle'], height=0)
+
+    # FS: CO placed at the PMD site; standard C≡O bond length 1.13 Å
+    state_FS = particle.copy()
+    n_vec = manifold.normals[pmd_idx]
+    pos_C = manifold.grid[pmd_idx]
+    pos_O = pos_C + n_vec * 1.13
+    state_FS += Atoms("CO", positions=[pos_C, pos_O])
+
+    return [state_IS, state_TS, state_FS]
+
+
 def get_PMD_structure(point, n_vector, phi, fragment):
     """Build an ASE Atoms object by attaching *fragment* at *point*.
 
