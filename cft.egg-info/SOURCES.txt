@@ -1,8 +1,0 @@
-README.md
-main.py
-pyproject.toml
-cft.egg-info/PKG-INFO
-cft.egg-info/SOURCES.txt
-cft.egg-info/dependency_links.txt
-cft.egg-info/requires.txt
-cft.egg-info/top_level.txt

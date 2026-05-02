@@ -4,6 +4,7 @@ from cft import Manifold
 from cft.mesh_utils import estimate_radius_decay
 from ase import Atoms
 import numpy as np
+import os
 from ase.visualize import view
 import copy
 from ase.constraints import FixAtoms
@@ -159,7 +160,7 @@ probes = [Fragment("Cl[P]", to_initialize=1)]
 
 # calculator
 clean_calc = mace_mp(
-    model="PATH_TO_MODEL",
+    model=os.environ.get('MODEL_PATH', ''),  # set MODEL_PATH env var to your MACE model file
     device="cpu",  # default = 'cuda'
     head="omat_pbe",  # default = 1.5
 )

@@ -4,6 +4,7 @@ from cft import Manifold
 from cft.mesh_utils import estimate_radius_decay
 from ase import Atoms
 import numpy as np
+import os
 from ase.visualize import view
 import copy
 from ase.constraints import FixAtoms
@@ -37,7 +38,7 @@ def main():
         write(f'surf_pop_{coverage}_{trj_i}.xyz', m.surf_population)
 
         surf_population = read(
-            f'/scratch/fako/cft_Cu_smash/surf_pop_{coverage}_{trj_i}.xyz', index=':'
+            f'surf_pop_{coverage}_{trj_i}.xyz', index=':'
             )
 
         for i in range(0, 1):
@@ -59,17 +60,12 @@ population_size = 500
 coverage = .6
 fmax = 0.1
 
-clean_calc = mace_mp(model=
-            #    '/mnt/c/Users/ef/Desktop/tmp/mace-mh-nl-pbe.model',
-               #'/home/fako/data/mace_models/mace-mh-nl-pbe.model',
-               '/home/fako/projects/models/mace-omat-0-medium.model',
+clean_calc = mace_mp(
+               model=os.environ.get('MODEL_PATH', ''),  # set MODEL_PATH env var to your MACE model file
                device='cuda',
-               #head='matpes_r2scan'
                )
 
-traj = [read(
-       '/home/ef/Code/CFT/examples/rh28_lignads/rh_28.xyz',
-       index=0)]
+traj = [read('./rh_28.xyz', index=0)]
 
 f = Fragment('Cl[PH+](CC(C)C)(CC(C)C)', to_initialize=100, prune_rms_thresh=.0001)
 
