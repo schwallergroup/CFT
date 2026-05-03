@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![ASE](https://img.shields.io/badge/integration-ASE-green.svg)](https://wiki.fysik.dtu.dk/ase/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19650620.svg)](https://doi.org/10.5281/zenodo.19650620)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19650620.svg)](https://doi.org/10.5281/zenodo.19980912)
 
 **This repository contains the code for the paper: [On the Covalent Fields of Molecule–Surface Interactions](https://github.com/schwallergroup/CFT)**
 
