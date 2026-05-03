@@ -121,8 +121,10 @@ Set `CFT_DATA_DIR`, `MODEL_PATH`, and `CFT_SCRATCH_DIR` (see step 3 above), then
 
 ```python
 from ase.visualize import view
+from ase.io import write
 from ase.build import fcc111, add_adsorbate
 from cft import Manifold
+from cft.mesh_utils import values_to_colors
 from autoadsorbate import Fragment
 
 # 0. Setup ASE calculator
@@ -134,18 +136,20 @@ atoms = fcc111('Cu', size=(4, 4, 3), vacuum=10.0)
 
 # 2. Create the CFT Manifold
 # Mode can be 'slab' or 'particle'
-manifold = Manifold(atoms, mode='slab', precision=.5, calc=calc, wrap_on='atoms')
+manifold = Manifold(atoms, mode='slab', precision=.3, calc=calc, wrap_on='atoms')
 
 # 3. Define a Probe (*SMILES for a Methyl fragment)
-probe_smiles = [Fragment("ClC", to_initialize=1)] # Cl atom serves as a surrogate atom in this surrogate-SMILES formula.
+probes = [Fragment("ClC", to_initialize=1)] # Cl atom serves as a surrogate atom in this surrogate-SMILES formula.
 
 # 4. Run a continuous field scan
-results = manifold.run_probe_scan(probe_smiles)
+manifold.run_probe_scan(probes)
+vals = manifold.grid_atoms.arrays[f'e_{probes[0].smile}']
+colors = [values_to_colors(v, [vals.min(), vals.max()], palette_nam="plasma") for v in vals.flatten()]
 
 # 5. Visualize the "Hedgehog" (Normals) and Field
-manifold.save_ply(filename='./test.ply')
+manifold.save_ply(filename='./test.ply', vertex_colors=colors)
 manifold.view_hedgehog(show_with_atoms=True)
-
+write('./test_grid_atoms.xyz', manifold.grid_atoms) # covalent field evals stored in atoms.arrays, visualize with e.g. Ovito
 ```
 
 ---
