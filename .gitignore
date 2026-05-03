@@ -11,12 +11,23 @@ __pycache__/
 .venv/
 
 # --- notebooks ---
-notebooks/*.ipynb
 notebooks/*.pdf
 notebooks/*.png
 notebooks/*.xyz
+notebooks/*.csv
+
+# --- examples (notebooks / images) ---
+examples/**/*.ipynb
+examples/**/*.png
 
 # --- examples (generated data / runs) ---
+examples/swiss_ai/README.md
+examples/swiss_ai/clusters.ipynb
+examples/swiss_ai/data
+examples/swiss_ai/db_out.db
+examples/swiss_ai/run.py
+examples/swiss_ai/run_one_metal.py
+examples/swiss_ai/utils.py
 examples/**/bkp/
 examples/**/MD_statistics/
 examples/**/*.xyz
@@ -48,6 +59,7 @@ tmp.xyz
 *.xyz
 *.ply
 *.db
+*.model
 
 # --- editor / OS ---
 .DS_Store
